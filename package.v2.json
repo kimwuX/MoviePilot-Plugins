@@ -1,0 +1,26 @@
+{
+    "TrackerADU": {
+        "name": "Tracker自定义编辑",
+        "description": "按照自定义规则批量替换、删除、增加种子tracker",
+        "labels": "种子管理",
+        "version": "1.0",
+        "icon": "Ittools_A.png",
+        "author": "kim.wu",
+        "level": 1,
+        "history": {
+            "v1.0": "Tracker自定义编辑插件"
+        }
+    },
+    "SubscribeClear": {
+        "name": "订阅种子清理",
+        "description": "删除指定下载信息。",
+        "labels": "下载管理",
+        "version": "1.1",
+        "icon": "Moviepilot_A.jpg",
+        "author": "k0ala",
+        "level": 1,
+        "history": {
+            "v1.0": "支持清理QB中已下载的订阅文件"
+        }
+    }
+}
