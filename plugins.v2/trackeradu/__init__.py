@@ -27,7 +27,7 @@ class TrackerADU(_PluginBase):
     # 插件图标
     plugin_icon = "Ittools_A.png"
     # 插件版本
-    plugin_version = "1.0"
+    plugin_version = "0.7"
     # 插件作者
     plugin_author = "kim.wu"
     # 作者主页
@@ -44,7 +44,7 @@ class TrackerADU(_PluginBase):
     RULE_DELETE = "del"
     RULE_UPDATE = "rep"
 
-    # 私有属性
+    # 配置属性
     _enabled = False
     _notify = False
     _onlyonce = False
@@ -52,37 +52,48 @@ class TrackerADU(_PluginBase):
     _downloaders = None
     _rules = ""
 
-    _dic_rules = {}
+    # 规则字典
+    _dic_rules: Dict[str, List] = {}
 
-    # 私有组件
     # 调度器
     __scheduler: Optional[BackgroundScheduler] = None
     # 下载器帮助类
     __downloader_helper: DownloaderHelper = None
     # 退出事件
-    __exit_event: ThreadEvent = ThreadEvent()
+    __exit_event: ThreadEvent = None
     # 任务锁
-    __task_lock: RLock = RLock()
+    __task_lock: RLock = None
 
 
     def init_plugin(self, config: dict = None):
         self.__downloader_helper = DownloaderHelper()
+        self.__exit_event = ThreadEvent()
+        self.__task_lock = RLock()
         self.__read_config(config)
 
         # 停止现有任务
         self.stop_service()
 
-        # 启动定时任务 & 立即运行一次
+        # 立即运行一次
         if self._onlyonce:
             try:
-                self.__async_try_run()
-                logger.info("立即运行一次成功")
+                logger.info("立即运行一次")
+                self.__scheduler = BackgroundScheduler(timezone=settings.TZ)
+                self.__scheduler.add_job(func=self.try_run, trigger="date",
+                                         run_date=datetime.now(tz=pytz.timezone(settings.TZ)) + timedelta(seconds=3))
+
+                # 启动任务
+                if self.__scheduler.get_jobs():
+                    self.__scheduler.print_jobs()
+                    self.__scheduler.start()
+            except Exception as e:
+                logger.error(f"立即运行一次异常：{str(e)}", exc_info=True)
             finally:
                 # 关闭一次性开关
                 self._onlyonce = False
                 self.__update_config()
 
-        if self.get_state():
+        if self._enabled:
             logger.info("插件服务已启用")
 
 
@@ -107,51 +118,51 @@ class TrackerADU(_PluginBase):
         })
 
 
-    def __get_new_trackers(self, tracker: str) -> List[str]:
-        ret = []
-        ori = tracker
-        for key in self._dic_rules.keys():
-                if key not in tracker:
-                    continue
-                for parts in self._dic_rules.get(key):
-                    op = parts[0].strip().lower()
-                    if op == self.RULE_ADD:
-                        new_tracker = tracker.replace(parts[1].strip(), parts[2].strip())
-                        if new_tracker:
-                            # logger.info(f"新增tracker: {tracker} -> {new_tracker}")
-                            ret.append(new_tracker)
-                    elif op == self.RULE_DELETE:
-                        ori = None
-                        # logger.info(f"删除tracker: {tracker}")
-                    elif op == self.RULE_UPDATE:
-                        ori = None
-                        new_tracker = tracker.replace(parts[1].strip(), parts[2].strip())
-                        if new_tracker:
-                            # logger.info(f"替换tracker: {tracker} -> {new_tracker}")
-                            ret.append(new_tracker)
+    def __get_new_trackers(self, tracker: str) -> Optional[List[str]]:
+        if not tracker:
+            return None
 
-        if ori:
-            ret.insert(0, ori)
-        return ret
+        new_list = []
+        preserved = True
+        for key, item in self._dic_rules.items():
+            if key not in tracker:
+                continue
+            for parts in item:
+                op = parts[0].strip().lower()
+                if op == self.RULE_ADD:
+                    new_tracker = tracker.replace(parts[1].strip(), parts[2].strip())
+                    if new_tracker:
+                        # logger.info(f"新增 tracker: {tracker} -> {new_tracker}")
+                        new_list.append(new_tracker)
+                elif op == self.RULE_DELETE:
+                    preserved = False
+                    # logger.info(f"删除 tracker: {tracker}")
+                elif op == self.RULE_UPDATE:
+                    preserved = False
+                    new_tracker = tracker.replace(parts[1].strip(), parts[2].strip())
+                    if new_tracker:
+                        # logger.info(f"替换 tracker: {tracker} -> {new_tracker}")
+                        new_list.append(new_tracker)
+
+        if preserved:
+            new_list.insert(0, tracker)
+        return new_list
 
 
-    def __get_torrents_for_qbittorrent(self, qbittorrent: Qbittorrent) -> Tuple[List[TorrentDictionary], bool]:
-        """
-        获取qb种子
-        """
+    def __get_qbittorrent_torrents(self, qbittorrent: Qbittorrent) -> Tuple[List[TorrentDictionary], bool]:
         if not qbittorrent:
             return None, False
         return qbittorrent.get_torrents()
 
 
-    def __update_tracker_for_qbittorrent(self, qbittorrent: Qbittorrent, torrent: TorrentDictionary,
-                                          tracker_list: List, new_list: List):
+    def __update_qbittorrent_trackers(self, qbittorrent: Qbittorrent, torrent: TorrentDictionary,
+                                      old_list: List, new_list: List) -> bool:
         if not qbittorrent or not qbittorrent.qbc:
             return False
 
         try:
-            toAdd = [x for x in new_list if x not in tracker_list]
-            toRemove = [x for x in tracker_list if x not in new_list]
+            toAdd = [x for x in new_list if x not in old_list]
+            toRemove = [x for x in old_list if x not in new_list]
             if len(toAdd) > 0:
                 torrent.addTrackers(toAdd)
                 # qbittorrent.qbc.torrents_add_trackers(torrent.get("hash"), toAdd)
@@ -163,27 +174,36 @@ class TrackerADU(_PluginBase):
                 # qbittorrent.qbc.torrents_reannounce(torrent.get("hash"))
             return True
         except Exception as err:
-            logger.warn(f"更新 tracker 出错：hash = {torrent.get('hash')}, name = {torrent.get('name')}, err = {str(err)}")
+            logger.warn(f"tracker 更新异常："
+                        f"hash = {torrent.hash}, name = {torrent.name}, err = {str(err)}")
             return False
 
 
-    def __handle_torrent_for_qbittorrent(self, qbittorrent: Qbittorrent, torrent: TorrentDictionary):
+    def __update_qbittorrent_torrents(self, qbittorrent: Qbittorrent, torrent: TorrentDictionary) -> bool:
+        if not qbittorrent or not qbittorrent.qbc:
+            return False
         if not torrent:
-            return
-        trackers = [x.url for x in torrent.trackers]
+            return False
+        trackers = [x.url for x in torrent.trackers if x.tier >= 0]
         if not trackers or len(trackers) == 0:
-            return
+            return False
 
         result = []
         for tracker in trackers:
-            result.extend(self.__get_new_trackers(tracker))
+            new_trackers = self.__get_new_trackers(tracker)
+            if not new_trackers or len(new_trackers) == 0:
+                continue
+            result.extend(new_trackers)
 
         result = list(dict.fromkeys(result))
         if not self.__is_list_equal(trackers, result):
-            if self.__update_tracker_for_qbittorrent(qbittorrent=qbittorrent, torrent=torrent,
-                                                      tracker_list=trackers, new_list=result):
-                logger.info(f"hash = {torrent.get('hash')}, name = {torrent.get('name')}")
-                logger.info(f"{trackers}替换为：{result}")
+            if self.__update_qbittorrent_trackers(qbittorrent=qbittorrent, torrent=torrent,
+                                                  old_list=trackers, new_list=result):
+                logger.info(f"种子更新成功："
+                            f"hash = {torrent.hash}, name = {torrent.name} => {trackers} -> {result}")
+                return True
+
+        return False
 
 
     def __run_for_qbittorrent(self, service_info: ServiceInfo):
@@ -194,7 +214,7 @@ class TrackerADU(_PluginBase):
                 logger.warn("插件服务正在退出，任务终止")
                 return
 
-            torrents, error = self.__get_torrents_for_qbittorrent(qbittorrent=service_info.instance)
+            torrents, error = self.__get_qbittorrent_torrents(qbittorrent=service_info.instance)
             if error:
                 logger.warn(f"下载器[{service_info.name}] - 获取种子失败，任务终止")
                 return
@@ -202,26 +222,26 @@ class TrackerADU(_PluginBase):
                 logger.warn(f"下载器[{service_info.name}] - 没有种子，任务终止")
                 return
 
+            count = 0
             for torrent in torrents:
-                self.__handle_torrent_for_qbittorrent(qbittorrent=service_info.instance, torrent=torrent)
+                if self.__update_qbittorrent_torrents(qbittorrent=service_info.instance, torrent=torrent):
+                    count += 1
 
-            logger.info(f"下载器[{service_info.name}] - 任务执行成功")
-            self.__send_notification(f"下载器[{service_info.name}] - 任务执行成功")
+            logger.info(f"下载器[{service_info.name}] - 任务执行成功，影响种子数：{count}个")
+            if count > 0:
+                self.__send_notification(f"下载器[{service_info.name}] - 任务执行成功，影响种子数：{count}个")
         except Exception as e:
             logger.error(f"下载器[{service_info.name}] - 任务执行失败: {str(e)}", exc_info=True)
 
 
-    def __get_torrents_for_transmission(self, transmission: Transmission) -> Tuple[List[Torrent], bool]:
-        """
-        获取tr种子
-        """
+    def __get_transmission_torrents(self, transmission: Transmission) -> Tuple[List[Torrent], bool]:
         if not transmission:
             return None, False
         return transmission.get_torrents()
 
 
-    def __update_tracker_for_transmission(self, transmission: Transmission, torrent: Torrent,
-                                          tracker_list: List, new_list: List):
+    def __update_transmission_trackers(self, transmission: Transmission, torrent: Torrent,
+                                       old_list: List, new_list: List) -> bool:
         if not transmission or not transmission.trc:
             return False
 
@@ -229,9 +249,9 @@ class TrackerADU(_PluginBase):
             if transmission.get_session().rpc_version >= 17:
                 transmission.trc.change_torrent(ids=torrent.hashString, tracker_list=[new_list])
             else:
-                urls = [x.announce for x in tracker_list]
+                urls = [x.announce for x in old_list]
                 toAdd = [x for x in new_list if x not in urls]
-                toRemove = [x.id for x in tracker_list if x.announce not in new_list]
+                toRemove = [x.id for x in old_list if x.announce not in new_list]
                 if len(toAdd) == 0:
                     toAdd = None
                 if len(toRemove) == 0:
@@ -242,28 +262,37 @@ class TrackerADU(_PluginBase):
                 transmission.trc.reannounce_torrent(ids=torrent.hashString)
             return True
         except Exception as err:
-            logger.warn(f"更新 tracker 出错：hash = {torrent.hashString}, name = {torrent.name}, err = {str(err)}")
+            logger.warn(f"tracker 更新异常："
+                        f"hash = {torrent.hashString}, name = {torrent.name}, err = {str(err)}")
             return False
 
 
-    def __handle_torrent_for_transmission(self, transmission: Transmission, torrent: Torrent):
+    def __update_transmission_torrents(self, transmission: Transmission, torrent: Torrent) -> bool:
+        if not transmission or not transmission.trc:
+            return False
         if not torrent:
-            return
+            return False
         trackers = torrent.trackers
         if not trackers or len(trackers) == 0:
-            return
+            return False
 
         result = []
         for tracker in trackers:
-            result.extend(self.__get_new_trackers(tracker.announce))
+            new_trackers = self.__get_new_trackers(tracker.announce)
+            if not new_trackers or len(new_trackers) == 0:
+                continue
+            result.extend(new_trackers)
 
         urls = [x.announce for x in trackers]
         result = list(dict.fromkeys(result))
         if not self.__is_list_equal(urls, result):
-            if self.__update_tracker_for_transmission(transmission=transmission, torrent=torrent,
-                                                      tracker_list=trackers, new_list=result):
-                logger.info(f"hash = {torrent.hashString}, name = {torrent.name}")
-                logger.info(f"{urls}替换为：{result}")
+            if self.__update_transmission_trackers(transmission=transmission, torrent=torrent,
+                                                   old_list=trackers, new_list=result):
+                logger.info(f"种子更新成功："
+                            f"hash = {torrent.hashString}, name = {torrent.name} => {urls} -> {result}")
+                return True
+
+        return False
 
 
     def __run_for_transmission(self, service_info: ServiceInfo):
@@ -274,7 +303,7 @@ class TrackerADU(_PluginBase):
                 logger.warn("插件服务正在退出，任务终止")
                 return
 
-            torrents, error = self.__get_torrents_for_transmission(transmission=service_info.instance)
+            torrents, error = self.__get_transmission_torrents(transmission=service_info.instance)
             if error:
                 logger.warn(f"下载器[{service_info.name}] - 获取种子失败，任务终止")
                 return
@@ -282,48 +311,43 @@ class TrackerADU(_PluginBase):
                 logger.warn(f"下载器[{service_info.name}] - 没有种子，任务终止")
                 return
 
+            count = 0
             for torrent in torrents:
-                self.__handle_torrent_for_transmission(transmission=service_info.instance, torrent=torrent)
+                if self.__update_transmission_torrents(transmission=service_info.instance, torrent=torrent):
+                    count += 1
 
-            logger.info(f"下载器[{service_info.name}] - 任务执行成功")
-            self.__send_notification(f"下载器[{service_info.name}] - 任务执行成功")
+            logger.info(f"下载器[{service_info.name}] - 任务执行成功，影响种子数：{count}个")
+            if count > 0:
+                self.__send_notification(f"下载器[{service_info.name}] - 任务执行成功，影响种子数：{count}个")
         except Exception as e:
             logger.error(f"下载器[{service_info.name}] - 任务执行失败: {str(e)}", exc_info=True)
 
 
     def __get_downloader_serviceInfos(self) -> Optional[List[ServiceInfo]]:
         if not self._downloaders:
-            logger.warning("尚未配置下载器，请检查配置")
+            logger.warn("尚未配置下载器，请检查配置")
             return None
 
         services = self.__downloader_helper.get_services(name_filters=self._downloaders)
         if not services:
-            logger.warning("获取下载器实例失败，请检查配置")
+            logger.warn("获取下载器实例失败，请检查配置")
             return None
 
         active_services = []
         for service_name, service_info in services.items():
             if service_info.instance.is_inactive():
-                logger.warning(f"下载器 {service_name} 未连接，请检查配置")
+                logger.warn(f"下载器 {service_name} 未连接，请检查配置")
             else:
                 active_services.append(service_info)
 
         if len(active_services) == 0:
-            logger.warning("没有已连接的下载器，请检查配置")
+            logger.warn("没有已连接的下载器，请检查配置")
             return None
 
         return active_services
 
 
-    def __run_now(self):
-        if self.__exit_event.is_set():
-            logger.warn("插件服务正在退出，任务终止")
-            return
-
-        service_infos = self.__get_downloader_serviceInfos()
-        if not service_infos:
-            return
-
+    def __parse_rules(self):
         self._dic_rules.clear()
         for line in self._rules.split("\n"):
             line = line.strip()
@@ -339,6 +363,7 @@ class TrackerADU(_PluginBase):
             if not op or not key:
                 logger.warn(f"规则配置有误：{line}")
                 continue
+
             rules = self._dic_rules.get(key, [])
             if op == self.RULE_ADD:
                 if count < 3 or not parts[2]:
@@ -357,90 +382,42 @@ class TrackerADU(_PluginBase):
                     self._dic_rules[key] = rules
             else:
                 logger.warn(f"规则配置有误：{line}")
-        
+
+
+    def __run_now(self):
+        if self.__exit_event.is_set():
+            logger.warn("插件服务正在退出，任务终止")
+            return
+
+        service_infos = self.__get_downloader_serviceInfos()
+        if not service_infos:
+            return
+
+        self.__parse_rules()
+        if len(self._dic_rules) == 0:
+            logger.warn("没有有效的规则，请检查配置")
+            return
+
         for service_info in service_infos:
             if service_info.type == "qbittorrent":
                 self.__run_for_qbittorrent(service_info=service_info)
             elif service_info.type == "transmission":
                 self.__run_for_transmission(service_info=service_info)
 
-        return
 
-
-    def __start_scheduler(self, timezone=None):
-        """
-        启动调度器
-        :param timezone: 时区
-        """
-        try:
-            scheduler: BackgroundScheduler = self.__scheduler
-            if not scheduler:
-                if not timezone:
-                    timezone = settings.TZ
-                self.__scheduler = scheduler = BackgroundScheduler(timezone=timezone)
-                logger.debug(f"插件服务调度器初始化完成: timezone = {str(timezone)}")
-            if not scheduler.running:
-                scheduler.start()
-                logger.debug(f"插件服务调度器启动成功")
-                scheduler.print_jobs()
-        except Exception as e:
-            logger.error(f"插件服务调度器启动异常: {str(e)}", exc_info=True)
-
-
-    def __stop_scheduler(self):
-        """
-        停止调度器
-        """
-        try:
-            logger.info("尝试停止插件服务调度器...")
-            scheduler: BackgroundScheduler = self.__scheduler
-            if scheduler:
-                scheduler.remove_all_jobs()
-                if scheduler.running:
-                    scheduler.shutdown()
-                self.__scheduler = scheduler = None
-                logger.info("插件服务调度器停止成功")
-            else:
-                logger.info("插件未启用服务调度器，无须停止")
-        except Exception as e:
-            logger.error(f"插件服务调度器停止异常: {str(e)}", exc_info=True)
-
-
-    def __try_run(self):
+    def try_run(self):
         """
         尝试运行插件任务
         """
         if not self.__task_lock.acquire(blocking=False):
-            logger.info("已有进行中的任务，本次不执行")
+            logger.warn("已有进行中的任务，本次不执行")
             return
         try:
             self.__run_now()
+        except Exception as e:
+            logger.error(f"尝试运行插件任务异常：{str(e)}", exc_info=True)
         finally:
             self.__task_lock.release()
-
-
-    def __async_try_run(self):
-        """
-        异步Try运行
-        """
-        self.__start_scheduler()
-        def __do_task():
-            self.__try_run()
-        scheduler: BackgroundScheduler = self.__scheduler
-        scheduler.add_job(func=__do_task,
-                          trigger="date",
-                          run_date=datetime.now(tz=pytz.timezone(settings.TZ)) + timedelta(seconds=3),
-                          name="异步Try运行")
-
-
-    def __send_notification(self, msg: str):
-        """
-        发送通知
-        :param msg: 通知内容
-        """
-        if not self._notify or not msg:
-            return
-        self.post_message(title=f"{self.plugin_name}任务执行结果", text=msg, mtype=NotificationType.Plugin)
 
 
     def get_state(self) -> bool:
@@ -457,18 +434,17 @@ class TrackerADU(_PluginBase):
 
     def get_service(self) -> List[Dict[str, Any]]:
         try:
-            if self.get_state() and self._cron:
+            if self._enabled and self._cron:
                 return [{
                     "id": f"{self.__class__.__name__}TimerService",
                     "name": f"{self.plugin_name}定时服务",
                     "trigger": CronTrigger.from_crontab(self._cron),
-                    "func": self.__try_run,
+                    "func": self.try_run,
                     "kwargs": {}
                 }]
-            else:
-                return []
         except Exception as e:
-            logger.error(f"注册插件公共服务异常: {str(e)}", exc_info=True)
+            logger.error(f"注册插件公共服务异常：{str(e)}", exc_info=True)
+        return []
 
 
     def get_form(self) -> Tuple[List[dict], Dict[str, Any]]:
@@ -615,14 +591,28 @@ class TrackerADU(_PluginBase):
 
     def stop_service(self):
         try:
-            logger.info("尝试停止插件服务...")
+            logger.debug("尝试停止插件服务...")
             self.__exit_event.set()
-            self.__stop_scheduler()
-            logger.info("插件服务停止完成")
+            if self.__scheduler:
+                self.__scheduler.remove_all_jobs()
+                if self.__scheduler.running:
+                    self.__scheduler.shutdown()
+                self.__scheduler = None
+            logger.info("插件服务已停止")
         except Exception as e:
-            logger.error(f"插件服务停止异常: {str(e)}", exc_info=True)
+            logger.error(f"插件服务停止异常：{str(e)}", exc_info=True)
         finally:
             self.__exit_event.clear()
+
+
+    def __send_notification(self, msg: str):
+        """
+        发送通知
+        """
+        if not self._notify or not msg:
+            return
+        self.post_message(title=f"{self.plugin_name}任务执行结果",
+                          text=msg, mtype=NotificationType.Plugin)
 
 
     def __is_list_equal(self, lst1: List,  lst2: List) -> bool:
