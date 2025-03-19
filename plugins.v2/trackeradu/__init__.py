@@ -132,17 +132,17 @@ class TrackerADU(_PluginBase):
                 if op == self.RULE_ADD:
                     new_tracker = tracker.replace(parts[1].strip(), parts[2].strip())
                     if new_tracker:
-                        # logger.info(f"新增 tracker: {tracker} -> {new_tracker}")
                         new_list.append(new_tracker)
+                        # logger.info(f"新增 tracker: {tracker} -> {new_tracker}")
                 elif op == self.RULE_DELETE:
                     preserved = False
                     # logger.info(f"删除 tracker: {tracker}")
                 elif op == self.RULE_UPDATE:
-                    preserved = False
                     new_tracker = tracker.replace(parts[1].strip(), parts[2].strip())
                     if new_tracker:
-                        # logger.info(f"替换 tracker: {tracker} -> {new_tracker}")
+                        preserved = False
                         new_list.append(new_tracker)
+                        # logger.info(f"替换 tracker: {tracker} -> {new_tracker}")
 
         if preserved:
             new_list.insert(0, tracker)
@@ -366,7 +366,7 @@ class TrackerADU(_PluginBase):
 
             rules = self._dic_rules.get(key, [])
             if op == self.RULE_ADD:
-                if count < 3 or not parts[2]:
+                if count < 3 or not parts[2].strip():
                     logger.warn(f"规则配置有误：{line}")
                 else:
                     rules.append(parts)
@@ -375,7 +375,7 @@ class TrackerADU(_PluginBase):
                 rules.append(parts)
                 self._dic_rules[key] = rules
             elif op == self.RULE_UPDATE:
-                if count < 3 or not parts[2]:
+                if count < 3 or not parts[2].strip():
                     logger.warn(f"规则配置有误：{line}")
                 else:
                     rules.append(parts)
@@ -516,7 +516,7 @@ class TrackerADU(_PluginBase):
                                 },
                                 'content': [
                                     {
-                                        'component': 'VTextField',
+                                        'component': 'VCronField',
                                         'props': {
                                             'model': 'cron',
                                             'label': '定时任务',
