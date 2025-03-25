@@ -8,6 +8,7 @@
         "author": "kim.wu",
         "level": 1,
         "history": {
+            "v1.2": "添加Tracker自定义编辑插件使用手册",
             "v1.1": "优化执行周期输入，需要MoviePilot v2.2.1+",
             "v1.0": "Tracker自定义编辑插件"
         }
