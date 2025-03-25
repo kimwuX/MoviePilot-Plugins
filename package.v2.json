@@ -3,7 +3,7 @@
         "name": "Tracker自定义编辑",
         "description": "按照自定义规则批量替换、删除、增加种子tracker",
         "labels": "工具,种子管理",
-        "version": "1.1",
+        "version": "1.2",
         "icon": "Ittools_A.png",
         "author": "kim.wu",
         "level": 1,

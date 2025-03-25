@@ -27,11 +27,11 @@ class TrackerADU(_PluginBase):
     # 插件图标
     plugin_icon = "Ittools_A.png"
     # 插件版本
-    plugin_version = "1.1"
+    plugin_version = "1.2"
     # 插件作者
     plugin_author = "kim.wu"
     # 作者主页
-    author_url = "https://github.com/kimwu2009"
+    author_url = "https://github.com/kimwuX"
     # 插件配置项ID前缀
     plugin_config_prefix = "trackeradu_"
     # 加载顺序
@@ -200,7 +200,7 @@ class TrackerADU(_PluginBase):
             if self.__update_qbittorrent_trackers(qbittorrent=qbittorrent, torrent=torrent,
                                                   old_list=trackers, new_list=result):
                 logger.info(f"种子更新成功："
-                            f"hash = {torrent.hash}, name = {torrent.name} => {trackers} -> {result}")
+                            f"{torrent.hash} / {torrent.name}, {trackers} -> {result}")
                 return True
 
         return False
@@ -289,7 +289,7 @@ class TrackerADU(_PluginBase):
             if self.__update_transmission_trackers(transmission=transmission, torrent=torrent,
                                                    old_list=trackers, new_list=result):
                 logger.info(f"种子更新成功："
-                            f"hash = {torrent.hashString}, name = {torrent.name} => {urls} -> {result}")
+                            f"{torrent.hashString} / {torrent.name}, {urls} -> {result}")
                 return True
 
         return False
@@ -336,7 +336,7 @@ class TrackerADU(_PluginBase):
         active_services = []
         for service_name, service_info in services.items():
             if service_info.instance.is_inactive():
-                logger.warn(f"下载器 {service_name} 未连接，请检查配置")
+                logger.warn(f"下载器[{service_name}] - 未连接，请检查配置")
             else:
                 active_services.append(service_info)
 
@@ -568,6 +568,47 @@ class TrackerADU(_PluginBase):
                                                            f'删除：{self.RULE_DELETE.upper()}|现有tracker关键字\n'
                                                            f'替换：{self.RULE_UPDATE.upper()}|现有tracker关键字|替换tracker关键字'
                                         }
+                                    }
+                                ]
+                            }
+                        ]
+                    },
+                    {
+                        'component': 'VRow',
+                        'props': {
+                            'style': {
+                                'margin-top': '12px'
+                            },
+                        },
+                        'content': [
+                            {
+                                'component': 'VCol',
+                                'props': {
+                                    'cols': 12,
+                                },
+                                'content': [
+                                    {
+                                        'component': 'VAlert',
+                                        'props': {
+                                            'type': 'info',
+                                            'variant': 'tonal',
+                                            'text': '使用手册请查阅 '
+                                        },
+                                        'content': [
+                                            {
+                                                'component': 'a',
+                                                'props': {
+                                                    'href': 'https://github.com/kimwuX/MoviePilot-Plugins/tree/main/plugins.v2/trackeradu',
+                                                    'target': '_blank'
+                                                },
+                                                'content': [
+                                                    {
+                                                        'component': 'u',
+                                                        'text': 'GitHub'
+                                                    }
+                                                ]
+                                            }
+                                        ]
                                     }
                                 ]
                             }
