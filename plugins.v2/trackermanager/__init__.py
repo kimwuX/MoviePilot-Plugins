@@ -19,21 +19,21 @@ from app.plugins import _PluginBase
 from app.schemas import NotificationType, ServiceInfo
 
 
-class TrackerADU(_PluginBase):
+class TrackerManager(_PluginBase):
     # 插件名称
-    plugin_name = "Tracker自定义编辑"
+    plugin_name = "种子Tracker管理"
     # 插件描述
-    plugin_desc = "按照自定义规则批量替换、删除、增加种子tracker"
+    plugin_desc = "按照规则自动替换替换、删除、增加种子tracker"
     # 插件图标
-    plugin_icon = "Ittools_A.png"
+    plugin_icon = "https://raw.githubusercontent.com/kimwuX/MoviePilot-Plugins/main/icons/Torrent_B.png"
     # 插件版本
-    plugin_version = "1.2"
+    plugin_version = "1.0"
     # 插件作者
     plugin_author = "kim.wu"
     # 作者主页
     author_url = "https://github.com/kimwuX"
     # 插件配置项ID前缀
-    plugin_config_prefix = "trackeradu_"
+    plugin_config_prefix = "trackermanager_"
     # 加载顺序
     plugin_order = 8
     # 可使用的用户级别
@@ -598,7 +598,7 @@ class TrackerADU(_PluginBase):
                                             {
                                                 'component': 'a',
                                                 'props': {
-                                                    'href': 'https://github.com/kimwuX/MoviePilot-Plugins/tree/main/plugins.v2/trackeradu',
+                                                    'href': 'https://github.com/kimwuX/MoviePilot-Plugins/tree/main/plugins.v2/trackermanager',
                                                     'target': '_blank'
                                                 },
                                                 'content': [
