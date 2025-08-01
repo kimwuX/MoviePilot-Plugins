@@ -29,9 +29,10 @@ class Tjupt(_ISiteSigninHandler):
     _sign_regex = ['<a href="attendance.php">今日已签到</a>']
 
     # 签到成功
-    _succeed_regex = ['这是您的首次签到，本次签到获得\\d+个魔力值。',
-                      '签到成功，这是您的第\\d+次签到，已连续签到\\d+天，本次签到获得\\d+个魔力值。',
-                      '重新签到成功，本次签到获得\\d+个魔力值']
+    _succeed_regex = ['这是您的首次签到，本次签到获得\\s*\\d+\\s*个魔力值。',
+                      '签到成功，这是您的第\\s*\\d+\\s*次签到，已连续签到\\s*\\d+\\s*天，本次签到获得\\s*\\d+\\s*个魔力值。',
+                      '签到成功，这是您的第\\s*\\d+\\s*次签到，已连续签到\\s*\\d+\\s*天，本次签到获得\\s*\\d+\\s*个魔力值（双倍奖励）。'
+                      '重新签到成功，本次签到获得\\s*\\d+\\s*个魔力值']
 
     # 存储正确的答案，后续可直接查
     _answer_path = settings.TEMP_PATH / "signin/"
@@ -54,7 +55,8 @@ class Tjupt(_ISiteSigninHandler):
         """
         site = site_info.get("name")
         site_cookie = site_info.get("cookie")
-        ua = site_info.get("ua")
+        # ua = site_info.get("ua")
+        ua = settings.NORMAL_USER_AGENT
         proxy = site_info.get("proxy")
         render = site_info.get("render")
 
@@ -95,23 +97,13 @@ class Tjupt(_ISiteSigninHandler):
             return False, '签到失败，未获取到签到图片'
 
         # 签到图片
+        img_name = img_url.split('/').pop()
         img_url = "https://www.tjupt.org" + img_url
         logger.info(f"获取到签到图片 {img_url}")
-        # 获取签到图片hash
-        captcha_img_res = RequestUtils(cookies=site_cookie,
-                                       ua=ua,
-                                       proxies=settings.PROXY if proxy else None
-                                       ).get_res(url=img_url)
-        if not captcha_img_res or captcha_img_res.status_code != 200:
-            logger.error(f"{site} 签到图片 {img_url} 请求失败")
-            return False, '签到失败，未获取到签到图片'
-        captcha_img = Image.open(BytesIO(captcha_img_res.content))
-        captcha_img_hash = self._tohash(captcha_img)
-        logger.debug(f"签到图片hash {captcha_img_hash}")
 
         # 签到答案选项
-        values = html.xpath("//input[@name='answer']/@value")
-        options = html.xpath("//input[@name='answer']/following-sibling::text()")
+        values = html.xpath("//input[@name='ban_robot']/@value")
+        options = html.xpath("//input[@name='ban_robot']/following-sibling::text()")
 
         if not values or not options:
             logger.error(f"{site} 签到失败，未获取到答案选项")
@@ -124,30 +116,51 @@ class Tjupt(_ISiteSigninHandler):
         # 查询已有答案
         exits_answers = {}
         try:
-            with open(self._answer_file, 'r') as f:
+            with open(self._answer_file, 'r', encoding='utf-8') as f:
                 json_str = f.read()
             exits_answers = json.loads(json_str)
             # 查询本地本次验证码hash答案
-            captcha_answer = exits_answers[captcha_img_hash]
+            captcha_answer = exits_answers.get(img_name)
+            logger.debug(f"本地答案：{captcha_answer}")
 
             # 本地存在本次hash对应的正确答案再遍历查询
             if captcha_answer:
                 for value, answer in answers:
                     if str(captcha_answer) == str(answer):
                         # 确实是答案
-                        return self.__signin(answer=value,
+                        return self.__signin(value=value,
+                                             answer=answer,
                                              site_cookie=site_cookie,
                                              ua=ua,
                                              proxy=proxy,
                                              site=site)
-        except (FileNotFoundError, IOError, OSError) as e:
+
+            logger.info("本地未收录该答案，继续请求豆瓣查询")
+        except Exception as e:
             logger.debug(f"查询本地已知答案失败：{str(e)}，继续请求豆瓣查询")
+
+        # 获取签到图片hash
+        captcha_img_res = RequestUtils(cookies=site_cookie,
+                                       ua=ua,
+                                       proxies=settings.PROXY if proxy else None
+                                       ).get_res(url=img_url)
+        if not captcha_img_res or captcha_img_res.status_code != 200:
+            logger.error(f"{site} 签到图片 {img_url} 请求失败")
+            return False, '签到失败，未获取到签到图片'
+        captcha_img = Image.open(BytesIO(captcha_img_res.content))
+        captcha_img_hash = self._tohash(captcha_img)
+        logger.debug(f"签到图片hash {captcha_img_hash}")
 
         # 本地不存在正确答案则请求豆瓣查询匹配
         for value, answer in answers:
             if answer:
+                # 间隔5s，防止请求太频繁被豆瓣屏蔽ip
+                time.sleep(5)
+
                 # 豆瓣检索
-                db_res = RequestUtils().get_res(url=f'https://movie.douban.com/j/subject_suggest?q={answer}')
+                db_res = RequestUtils(ua=settings.NORMAL_USER_AGENT
+                                      ).get_res(url=f'https://movie.douban.com/j/subject_suggest?q={answer}')
+                logger.debug(f"豆瓣返回 {answer} {db_res.text}")
                 if not db_res or db_res.status_code != 200:
                     logger.debug(f"签到选项 {answer} 未查询到豆瓣数据")
                     continue
@@ -161,47 +174,47 @@ class Tjupt(_ISiteSigninHandler):
                     logger.debug(f"签到选项 {answer} 查询到豆瓣数据为空")
 
                 for db_answer in db_answers:
-                    answer_img_url = db_answer['img']
+                    answer_img_url = db_answer.get('img')
+                    answer_title = db_answer.get('title')
 
                     # 获取答案hash
                     answer_img_res = RequestUtils(referer="https://movie.douban.com").get_res(url=answer_img_url)
+                    logger.debug(f"签到答案图片 {answer_title} {answer_img_url}")
                     if not answer_img_res or answer_img_res.status_code != 200:
-                        logger.debug(f"签到答案 {answer} {answer_img_url} 请求失败")
+                        logger.debug(f"签到答案 {answer_title} {answer_img_url} 请求失败")
                         continue
 
                     answer_img = Image.open(BytesIO(answer_img_res.content))
                     answer_img_hash = self._tohash(answer_img)
-                    logger.debug(f"签到答案图片hash {answer} {answer_img_hash}")
+                    logger.debug(f"签到答案图片hash {answer_title} {answer_img_hash}")
 
                     # 获取选项图片与签到图片相似度，大于0.9默认是正确答案
                     score = self._comparehash(captcha_img_hash, answer_img_hash)
-                    logger.info(f"签到图片与选项 {answer} 豆瓣图片相似度 {score}")
+                    logger.info(f"签到图片与 {answer_title} 豆瓣图片相似度 {score}")
                     if score > 0.9:
                         # 确实是答案
-                        return self.__signin(answer=value,
+                        return self.__signin(value=value,
+                                             answer=answer,
                                              site_cookie=site_cookie,
                                              ua=ua,
                                              proxy=proxy,
                                              site=site,
                                              exits_answers=exits_answers,
-                                             captcha_img_hash=captcha_img_hash)
+                                             img_name=img_name)
 
-            # 间隔5s，防止请求太频繁被豆瓣屏蔽ip
-            time.sleep(5)
         logger.error(f"豆瓣图片匹配，未获取到匹配答案")
-
         # 没有匹配签到成功，则签到失败
         return False, '签到失败，未获取到匹配答案'
 
-    def __signin(self, answer, site_cookie, ua, proxy, site, exits_answers=None, captcha_img_hash=None):
+    def __signin(self, value, answer, site_cookie, ua, proxy, site, exits_answers=None, img_name=None):
         """
         签到请求
         """
         data = {
-            'answer': answer,
+            'ban_robot': value,
             'submit': '提交'
         }
-        logger.debug(f"提交data {data}")
+        logger.debug(f"提交答案 {data}")
         sign_in_res = RequestUtils(cookies=site_cookie,
                                    ua=ua,
                                    proxies=settings.PROXY if proxy else None
@@ -215,28 +228,29 @@ class Tjupt(_ISiteSigninHandler):
                                           regexs=self._succeed_regex)
         if sign_status:
             logger.info(f"签到成功")
-            if exits_answers and captcha_img_hash:
+            if exits_answers is not None and img_name is not None:
                 # 签到成功写入本地文件
-                self.__write_local_answer(exits_answers=exits_answers or {},
-                                          captcha_img_hash=captcha_img_hash,
+                self.__write_local_answer(exits_answers=exits_answers,
+                                          img_name=img_name,
                                           answer=answer)
             return True, '签到成功'
         else:
             logger.error(f"{site} 签到失败，请到页面查看")
             return False, '签到失败，请到页面查看'
 
-    def __write_local_answer(self, exits_answers, captcha_img_hash, answer):
+    def __write_local_answer(self, exits_answers, img_name, answer):
         """
         签到成功写入本地文件
         """
         try:
-            exits_answers[captcha_img_hash] = answer
+            exits_answers[img_name] = answer
             # 序列化数据
-            formatted_data = json.dumps(exits_answers, indent=4)
-            with open(self._answer_file, 'w') as f:
+            formatted_data = json.dumps(exits_answers, ensure_ascii=False)
+            logger.debug(f"保存答案 {formatted_data}")
+            with open(self._answer_file, 'w', encoding='utf-8') as f:
                 f.write(formatted_data)
-        except (FileNotFoundError, IOError, OSError) as e:
-            logger.debug(f"签到成功写入本地文件失败：{str(e)}")
+        except Exception as e:
+            logger.debug(f"写入本地文件失败：{str(e)}")
 
     @staticmethod
     def _tohash(img, shape=(10, 10)):

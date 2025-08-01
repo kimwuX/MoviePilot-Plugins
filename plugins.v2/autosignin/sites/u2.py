@@ -100,7 +100,7 @@ class U2(_ISiteSigninHandler):
             'req': req,
             'hash': hash_str,
             'form': form,
-            'message': '一切随缘~',
+            'message': '今日份签到',
             submit_name[answer_num]: submit_value[answer_num]
         }
         # 签到
