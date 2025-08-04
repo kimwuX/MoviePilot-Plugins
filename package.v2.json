@@ -27,7 +27,7 @@
         "name": "站点自动签到",
         "description": "自动模拟登录、签到站点。",
         "labels": "站点",
-        "version": "2.6.1.1",
+        "version": "2.6.1.2",
         "icon": "signin.png",
         "author": "thsrite",
         "level": 2,

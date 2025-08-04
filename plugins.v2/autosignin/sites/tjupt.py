@@ -29,10 +29,10 @@ class Tjupt(_ISiteSigninHandler):
     _sign_regex = ['<a href="attendance.php">今日已签到</a>']
 
     # 签到成功
-    _succeed_regex = ['这是您的首次签到，本次签到获得\\s*\\d+\\s*个魔力值。',
-                      '签到成功，这是您的第\\s*\\d+\\s*次签到，已连续签到\\s*\\d+\\s*天，本次签到获得\\s*\\d+\\s*个魔力值。',
-                      '签到成功，这是您的第\\s*\\d+\\s*次签到，已连续签到\\s*\\d+\\s*天，本次签到获得\\s*\\d+\\s*个魔力值（双倍奖励）。'
-                      '重新签到成功，本次签到获得\\s*\\d+\\s*个魔力值']
+    _succeed_regex = ['这是您的首次签到，本次签到获得\\s*<b>\\d+<\/b>\\s*个魔力值。',
+                      '签到成功，这是您的第\\s*<b>\\d+<\/b>\\s*次签到，已连续签到\\s*<b>\\d+<\/b>\\s*天，本次签到获得\\s*<b>\\d+<\/b>\\s*个魔力值。',
+                      '签到成功，这是您的第\\s*<b>\\d+<\/b>\\s*次签到，已连续签到\\s*<b>\\d+<\/b>\\s*天，本次签到获得\\s*<b>\\d+<\/b>\\s*个魔力值（双倍奖励）。'
+                      '重新签到成功，本次签到获得\\s*<b>\\d+<\/b>\\s*个魔力值']
 
     # 存储正确的答案，后续可直接查
     _answer_path = settings.TEMP_PATH / "signin/"
@@ -195,10 +195,10 @@ class Tjupt(_ISiteSigninHandler):
                         # 确实是答案
                         return self.__signin(value=value,
                                              answer=answer,
+                                             site=site,
                                              site_cookie=site_cookie,
                                              ua=ua,
                                              proxy=proxy,
-                                             site=site,
                                              exits_answers=exits_answers,
                                              img_name=img_name)
 
@@ -206,7 +206,7 @@ class Tjupt(_ISiteSigninHandler):
         # 没有匹配签到成功，则签到失败
         return False, '签到失败，未获取到匹配答案'
 
-    def __signin(self, value, answer, site_cookie, ua, proxy, site, exits_answers=None, img_name=None):
+    def __signin(self, value, answer, site, site_cookie, ua, proxy, exits_answers=None, img_name=None) -> Tuple[bool, str]:
         """
         签到请求
         """
