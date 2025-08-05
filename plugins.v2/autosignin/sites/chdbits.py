@@ -1,6 +1,5 @@
 import json
 import os
-import random
 import re
 from typing import Tuple
 
@@ -29,8 +28,8 @@ class CHDBits(_ISiteSigninHandler):
     # 已签到
     _sign_regex = ['今天已经签过到了']
 
-    # 签到成功，待补充
-    _success_regex = ['\\d+点魔力值']
+    # 签到成功
+    _success_regex = [r'连续\d+天签到,获得\d+点魔力值']
 
     # 存储正确的答案，后续可直接查
     _answer_path = settings.TEMP_PATH / "signin/"
@@ -94,7 +93,7 @@ class CHDBits(_ISiteSigninHandler):
         # option_ids = html.xpath("//input[@name='choice[]']/@value")
         question_str = html.xpath("//td[@class='text' and contains(text(),'请问：')]/text()")[0]
 
-        logger.debug(f"签到问题：{questionid} {question_str.strip()}")
+        logger.debug(f"签到问题：{questionid} - {re.sub(r'\s+', ' ', question_str.strip())}")
 
         # 查询已有答案
         try:

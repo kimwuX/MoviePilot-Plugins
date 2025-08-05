@@ -29,10 +29,7 @@ class Tjupt(_ISiteSigninHandler):
     _sign_regex = ['<a href="attendance.php">今日已签到</a>']
 
     # 签到成功
-    _succeed_regex = ['这是您的首次签到，本次签到获得\\s*<b>\\d+<\/b>\\s*个魔力值。',
-                      '签到成功，这是您的第\\s*<b>\\d+<\/b>\\s*次签到，已连续签到\\s*<b>\\d+<\/b>\\s*天，本次签到获得\\s*<b>\\d+<\/b>\\s*个魔力值。',
-                      '签到成功，这是您的第\\s*<b>\\d+<\/b>\\s*次签到，已连续签到\\s*<b>\\d+<\/b>\\s*天，本次签到获得\\s*<b>\\d+<\/b>\\s*个魔力值（双倍奖励）。'
-                      '重新签到成功，本次签到获得\\s*<b>\\d+<\/b>\\s*个魔力值']
+    _succeed_regex = [r'本次签到获得\s*<b>\d+<\/b>\s*个魔力值']
 
     # 存储正确的答案，后续可直接查
     _answer_path = settings.TEMP_PATH / "signin/"
