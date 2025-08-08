@@ -8,7 +8,6 @@ from threading import Event
 from typing import Any, Dict, List, Optional, Tuple, Union
 
 import pytz
-import requests
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
 from bencode import bdecode, bencode
@@ -23,6 +22,7 @@ from app.log import logger
 from app.plugins import _PluginBase
 from app.schemas import NotificationType, ServiceInfo
 from app.schemas.types import EventType
+from app.utils.http import RequestUtils
 from app.utils.string import StringUtils
 from app.utils.timer import TimerUtils
 
@@ -143,32 +143,31 @@ class CrossSeedHelper(object):
         """
         返回pieces_hash对应的种子信息，包括站点id,pieces_hash,种子id
         """
-        headers = {
-            "Content-Type": "application/json",
-            "Accept": "application/json",
-            "User-Agent": "CrossSeedHelper",
-        }
+        remote_torrents = []
         data = {"passkey": site.passkey, "pieces_hash": pieces_hash_set}
-        remote_torrent_infos = []
-        try:
-            response = requests.post(
-                site.get_api_url(),
-                headers=headers,
-                json=data,
-                timeout=10,
-                proxies=settings.PROXY if site.proxy else None,
-            )
-            response.raise_for_status()
+        # logger.debug(f"站点{site.name}辅种接口查询：{json.dumps(data)}")
+        response = RequestUtils(cookies=site.cookie,
+                                ua=site.ua,
+                                proxies=settings.PROXY if site.proxy else None,
+                                content_type="application/json"
+                                ).post(url=site.get_api_url(), json=data)
+        if response is None:
+            return None, "未知错误"
+        elif response.status_code != 200:
+            return None, f"{response.status_code} Error: {response.reason}"
+        else:
+            # logger.debug(f"站点{site.name}辅种接口返回：{response.text}")
             rsp_body = response.json()
-            if isinstance(rsp_body["data"], dict):
+            if rsp_body.get("ret") != 0:
+                logger.warning(f"站点{site.name}辅种接口查询失败：{rsp_body.get('msg')}")
+            elif isinstance(rsp_body["data"], dict):
                 for pieces_hash, torrent_id in rsp_body["data"].items():
-                    remote_torrent_infos.append(
+                    remote_torrents.append(
                         TorInfo.remote(site.name, pieces_hash, torrent_id)
                     )
-            time.sleep(site.query_gap)
-        except requests.exceptions.RequestException as e:
-            return None, f"站点{site.name}请求失败：{e}"
-        return remote_torrent_infos, None
+            else:
+                logger.warning(f"站点{site.name}辅种接口解析失败，返回内容：{response.text}")
+        return remote_torrents, None
 
 
 class CrossSeed(_PluginBase):
@@ -179,7 +178,7 @@ class CrossSeed(_PluginBase):
     # 插件图标
     plugin_icon = "qingwa.png"
     # 插件版本
-    plugin_version = "3.0.1"
+    plugin_version = "3.0.1.1"
     # 插件作者
     plugin_author = "233@qingwa"
     # 作者主页
@@ -194,6 +193,8 @@ class CrossSeed(_PluginBase):
     # 私有属性
     _scheduler = None
     cross_helper = None
+    siteshelper: SitesHelper = None
+    siteoper: SiteOper = None
     # 开关
     _enabled = False
     _cron = None
@@ -229,6 +230,8 @@ class CrossSeed(_PluginBase):
     cached = 0
 
     def init_plugin(self, config: dict = None):
+        self.siteshelper = SitesHelper()
+        self.siteoper = SiteOper()
 
         # 读取配置
         if config:
@@ -250,25 +253,16 @@ class CrossSeed(_PluginBase):
             self._success_caches = [] if self._clearcache else config.get("success_caches") or []
 
             # 过滤掉已删除的站点
-            inner_site_list = SiteOper().list_order_by_pri()
-            all_sites = [(site.id, site.name) for site in inner_site_list] + [
-                (site.get("id"), site.get("name")) for site in self.__custom_sites()
-            ]
-            self._sites = [site_id for site_id, site_name in all_sites if site_id in self._sites]
+            all_sites = [site.id for site in self.siteoper.list_order_by_pri()] + \
+                [site.get("id") for site in self.__custom_sites()]
+            self._sites = [site_id for site_id in all_sites if site_id in self._sites]
+            site_indexers = [site
+                             for site in (self.siteshelper.get_indexers() + self.__custom_sites())
+                             if site.get("id") in self._sites]
 
             # 整理所有可用内部站点信息
             all_site_cs_info_map: dict[str, CSSiteConfig] = dict()
-            for site in inner_site_list:
-                if site.is_active:
-                    all_site_cs_info_map[site.name] = CSSiteConfig(
-                        name=site.name,
-                        url=site.url,
-                        id=site.id,
-                        cookie=site.cookie,
-                        ua=site.ua,
-                        proxy=True if site.proxy else False,
-                    )
-            for site in self.__custom_sites():
+            for site in site_indexers:
                 all_site_cs_info_map[site.get("name")] = CSSiteConfig(
                     name=site.get("name"),
                     url=site.get("url"),
@@ -277,8 +271,7 @@ class CrossSeed(_PluginBase):
                     ua=site.get("ua"),
                     proxy=site.get("proxy"),
                 )
-            self._sites = [site.id for site in all_site_cs_info_map.values() if site.id in self._sites]
-            site_names = [site.name for site in all_site_cs_info_map.values() if site.id in self._sites]
+            site_names = [site.name for site in all_site_cs_info_map.values()]
 
             # 整理passkey映射关系
             site_name_key_map = dict()
@@ -438,7 +431,7 @@ class CrossSeed(_PluginBase):
 
         # 站点的可选项
         site_options = ([{"title": site.name, "value": site.id}
-                         for site in SiteOper().list_order_by_pri()]
+                         for site in self.siteoper.list_order_by_pri()]
                         + [{"title": site.get("name"), "value": site.get("id")}
                            for site in customSites])
         # 测试版本，只支持青蛙
@@ -974,14 +967,16 @@ class CrossSeed(_PluginBase):
         # 分站点逐个批次辅种
         # 逐个站点查询可辅种数据
         chunk_size = 100
+        sleep_time = 30
         for site_config in self._site_cs_infos:
             # 检查站点是否已经停用
-            db_site = SiteOper().get(site_config.id)
+            db_site = self.siteoper.get(site_config.id)
             if db_site and not db_site.is_active:
                 logger.info(f"站点{site_config.name}已停用，跳过辅种")
                 continue
             remote_tors: List[TorInfo] = []
             total_size = len(pieces_hashes)
+            cnt = 0
             for i in range(0, len(pieces_hashes), chunk_size):
                 if self._event.is_set():
                     logger.info("辅种服务停止")
@@ -990,7 +985,7 @@ class CrossSeed(_PluginBase):
                 chunk = pieces_hashes[i:i + chunk_size]
                 # 处理分组
                 chunk_tors, err_msg = self.cross_helper.get_target_torrent(site_config, chunk)
-                if not chunk_tors and err_msg:
+                if not chunk_tors:
                     logger.info(
                         f"查询站点{site_config.name}可辅种的信息出错 {err_msg},进度={i + 1}/{total_size}"
                     )
@@ -999,6 +994,13 @@ class CrossSeed(_PluginBase):
                         f"站点{site_config.name}本批次的可辅种/查询数={len(chunk_tors)}/{len(chunk)},进度={i + 1}/{total_size}"
                     )
                     remote_tors = remote_tors + chunk_tors
+                cnt += 1
+                if cnt % 5 == 0:
+                    logger.debug(f"休眠{sleep_time}秒...")
+                    time.sleep(sleep_time)
+                else:
+                    logger.debug(f"休眠{site_config.query_gap}秒...")
+                    time.sleep(site_config.query_gap)
 
             logger.info(f"站点{site_config.name}返回可以辅种的种子总数为{len(remote_tors)}")
 
@@ -1096,7 +1098,7 @@ class CrossSeed(_PluginBase):
         _, content, _, _, error_msg = TorrentHelper().download_torrent(
             url=torrent_url,
             cookie=site_config.cookie,
-            ua=site_config.ua or settings.USER_AGENT,
+            ua=site_config.ua,
             proxy=True if site_config.proxy else False)
 
         # 兼容种子无法访问的情况
@@ -1154,7 +1156,7 @@ class CrossSeed(_PluginBase):
 
     def __add_recheck_torrents(self, service: ServiceInfo, download_id: str):
         # 追加校验任务
-        logger.info(f"添加校验检查任务：{download_id} ...")
+        # logger.info(f"添加校验检查任务：{download_id} ...")
         if not self._recheck_torrents.get(service.name):
             self._recheck_torrents[service.name] = []
         self._recheck_torrents[service.name].append(download_id)
