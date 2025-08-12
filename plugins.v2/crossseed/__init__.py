@@ -143,31 +143,33 @@ class CrossSeedHelper(object):
         """
         返回pieces_hash对应的种子信息，包括站点id,pieces_hash,种子id
         """
-        remote_torrents = []
         data = {"passkey": site.passkey, "pieces_hash": pieces_hash_set}
-        # logger.debug(f"站点{site.name}辅种接口查询：{json.dumps(data)}")
         response = RequestUtils(cookies=site.cookie,
                                 ua=site.ua,
                                 proxies=settings.PROXY if site.proxy else None,
                                 content_type="application/json"
                                 ).post(url=site.get_api_url(), json=data)
+        torrents = None
+        errmsg = None
         if response is None:
-            return None, "未知错误"
+            errmsg = "未知错误"
         elif response.status_code != 200:
-            return None, f"{response.status_code} Error: {response.reason}"
+            errmsg = f"{response.status_code} Error: {response.reason}"
         else:
             # logger.debug(f"站点{site.name}辅种接口返回：{response.text}")
             rsp_body = response.json()
             if rsp_body.get("ret") != 0:
-                logger.warning(f"站点{site.name}辅种接口查询失败：{rsp_body.get('msg')}")
+                errmsg = "msg=" + rsp_body.get("msg")
             elif isinstance(rsp_body["data"], dict):
+                torrents = []
                 for pieces_hash, torrent_id in rsp_body["data"].items():
-                    remote_torrents.append(
+                    torrents.append(
                         TorInfo.remote(site.name, pieces_hash, torrent_id)
                     )
             else:
-                logger.warning(f"站点{site.name}辅种接口解析失败，返回内容：{response.text}")
-        return remote_torrents, None
+                errmsg = "辅种返回数据解析失败"
+                logger.warning(f"站点{site.name}辅种返回数据解析失败：{response.text}")
+        return torrents, errmsg
 
 
 class CrossSeed(_PluginBase):
@@ -178,7 +180,7 @@ class CrossSeed(_PluginBase):
     # 插件图标
     plugin_icon = "qingwa.png"
     # 插件版本
-    plugin_version = "3.0.1.1"
+    plugin_version = "3.0.1.2"
     # 插件作者
     plugin_author = "233@qingwa"
     # 作者主页
@@ -191,6 +193,7 @@ class CrossSeed(_PluginBase):
     auth_level = 2
 
     # 私有属性
+    key_sep = ","
     _scheduler = None
     cross_helper = None
     siteshelper: SitesHelper = None
@@ -213,12 +216,6 @@ class CrossSeed(_PluginBase):
     # 待校全种子hash清单
     _recheck_torrents = {}
     _is_recheck_running = False
-    # 辅种缓存，出错的种子不再重复辅种，可清除
-    _error_caches = []
-    # 辅种缓存，辅种成功的种子，可清除
-    _success_caches = []
-    # 辅种缓存，出错的种子不再重复辅种，且无法清除。种子被删除404等情况
-    _permanent_error_caches = []
     _torrentpaths = []
     _site_cs_infos = []
     # 辅种计数
@@ -248,9 +245,6 @@ class CrossSeed(_PluginBase):
             self._nolabels = config.get("nolabels")
             self._nopaths = config.get("nopaths")
             self._clearcache = config.get("clearcache")
-            self._permanent_error_caches = [] if self._clearcache else config.get("permanent_error_caches") or []
-            self._error_caches = [] if self._clearcache else config.get("error_caches") or []
-            self._success_caches = [] if self._clearcache else config.get("success_caches") or []
 
             # 过滤掉已删除的站点
             all_sites = [site.id for site in self.siteoper.list_order_by_pri()] + \
@@ -325,20 +319,15 @@ class CrossSeed(_PluginBase):
 
                 # 关闭一次性开关
                 self._onlyonce = False
+                # 保存配置
+                self.__update_config()
+
                 if self._scheduler.get_jobs():
                     # 追加种子校验服务
                     self._scheduler.add_job(self.check_recheck, 'interval', minutes=3)
                     # 启动服务
                     self._scheduler.print_jobs()
                     self._scheduler.start()
-
-            if self._clearcache:
-                # 关闭清除缓存开关
-                self._clearcache = False
-
-            if self._clearcache or self._onlyonce:
-                # 保存配置
-                self.__update_config()
 
     @property
     def service_infos(self) -> Optional[Dict[str, ServiceInfo]]:
@@ -743,10 +732,7 @@ class CrossSeed(_PluginBase):
             "sites": self._sites,
             "notify": self._notify,
             "nolabels": self._nolabels,
-            "nopaths": self._nopaths,
-            "success_caches": self._success_caches,
-            "error_caches": self._error_caches,
-            "permanent_error_caches": self._permanent_error_caches
+            "nopaths": self._nopaths
         })
 
     def auto_seed(self):
@@ -784,9 +770,6 @@ class CrossSeed(_PluginBase):
                     return
                     # 获取种子hash
                 hash_str = self.__get_hash(torrent, service.type)
-                if hash_str in self._error_caches or hash_str in self._permanent_error_caches:
-                    logger.info(f"种子 {hash_str} 辅种失败且已缓存，跳过 ...")
-                    continue
                 save_path = self.__get_save_path(torrent, service.type)
                 # 获取种子文件路径
                 torrent_path = Path(self._torrentpaths[idx]) / f"{hash_str}.torrent"
@@ -875,8 +858,13 @@ class CrossSeed(_PluginBase):
                 self.check_recheck()
             else:
                 logger.info("没有需要辅种的种子")
-        # 保存缓存
-        self.__update_config()
+
+        if self._clearcache:
+            # 关闭清除缓存开关
+            self._clearcache = False
+            # 保存配置
+            self.__update_config()
+
         # 发送消息
         if self._notify:
             if self.success or self.fail:
@@ -975,7 +963,6 @@ class CrossSeed(_PluginBase):
                 logger.info(f"站点{site_config.name}已停用，跳过辅种")
                 continue
             remote_tors: List[TorInfo] = []
-            total_size = len(pieces_hashes)
             cnt = 0
             for i in range(0, len(pieces_hashes), chunk_size):
                 if self._event.is_set():
@@ -985,13 +972,13 @@ class CrossSeed(_PluginBase):
                 chunk = pieces_hashes[i:i + chunk_size]
                 # 处理分组
                 chunk_tors, err_msg = self.cross_helper.get_target_torrent(site_config, chunk)
-                if not chunk_tors:
-                    logger.info(
-                        f"查询站点{site_config.name}可辅种的信息出错 {err_msg},进度={i + 1}/{total_size}"
+                if chunk_tors is None:
+                    logger.warning(
+                        f"站点{site_config.name}辅种进度{i + 1}-{i + len(chunk)}，查询失败：{err_msg},"
                     )
                 else:
                     logger.info(
-                        f"站点{site_config.name}本批次的可辅种/查询数={len(chunk_tors)}/{len(chunk)},进度={i + 1}/{total_size}"
+                        f"站点{site_config.name}辅种进度{i + 1}-{i + len(chunk)}，可辅种数{len(chunk_tors)}个"
                     )
                     remote_tors = remote_tors + chunk_tors
                 cnt += 1
@@ -1019,6 +1006,11 @@ class CrossSeed(_PluginBase):
                     not_local_tors.append(tor_info)
             logger.info(f"站点{site_config.name}正在做种或已经辅种过的种子数为{local_cnt}")
 
+            cache_data = self.get_plugin_data(f"{service.name}{self.key_sep}{site_config.name}", {})
+            success_cache = [] if self._clearcache else cache_data.get("success") or []
+            fail_cache = []
+            error_cache = [] if self._clearcache else cache_data.get("error") or []
+
             for tor_info in not_local_tors:
                 if self._event.is_set():
                     logger.info("辅种服务停止")
@@ -1027,16 +1019,24 @@ class CrossSeed(_PluginBase):
                     continue
                 if not tor_info.torrent_id or not tor_info.pieces_hash:
                     continue
-                if tor_info.get_name_id_tag() in self._success_caches:
-                    logger.info(f"{tor_info.get_name_id_tag()} 已处理过辅种，跳过 ...")
+                if tor_info.torrent_id in success_cache:
+                    logger.warning(f"种子 {tor_info.get_name_id_tag()} 已存在于辅种成功缓存，跳过 ...")
                     continue
-                if tor_info.get_name_id_tag() in self._error_caches or tor_info.get_name_id_tag() in self._permanent_error_caches:
-                    logger.info(f"种子 {tor_info.get_name_id_tag()} 辅种失败且已缓存，跳过 ...")
+                if tor_info.torrent_id in error_cache:
+                    logger.warning(f"种子 {tor_info.get_name_id_tag()} 已存在于辅种失败缓存，跳过 ...")
                     continue
                 # 添加任务
                 self.__download_torrent(tor=tor_info, site_config=site_config,
                                         service=service,
-                                        save_path=save_paths.get(tor_info.pieces_hash))
+                                        save_path=save_paths.get(tor_info.pieces_hash),
+                                        success_cache=success_cache,
+                                        fail_cache=fail_cache,
+                                        error_cache=error_cache)
+
+            cache_data["success"] = success_cache
+            cache_data["fail"] = fail_cache
+            cache_data["error"] = error_cache
+            self.set_plugin_data(f"{service.name}{self.key_sep}{site_config.name}", cache_data)
 
         logger.info(f"下载器 {service.name} 辅种完成")
 
@@ -1083,6 +1083,9 @@ class CrossSeed(_PluginBase):
             site_config: CSSiteConfig,
             service: ServiceInfo,
             save_path: str,
+            success_cache: list,
+            fail_cache: list,
+            error_cache: list
     ):
         """
         下载种子
@@ -1108,10 +1111,10 @@ class CrossSeed(_PluginBase):
             self.cached += 1
             # 加入失败缓存
             if error_msg and ('无法打开链接' in error_msg or '触发站点流控' in error_msg):
-                self._error_caches.append(tor.get_name_id_tag())
+                fail_cache.append(tor.torrent_id)
             else:
                 # 种子不存在的情况
-                self._permanent_error_caches.append(tor.get_name_id_tag())
+                error_cache.append(tor.torrent_id)
             logger.error(f"下载种子文件失败：{tor.get_name_id_tag()}")
             return False
 
@@ -1122,11 +1125,12 @@ class CrossSeed(_PluginBase):
             tors, msg = downloader_obj.get_torrents(ids=[tmp_tor_info.info_hash])
             if tors:
                 self.exist += 1
-                self._success_caches.append(tor.get_name_id_tag())
-                logger.info(f"下载的种子{tor.get_name_id_tag()}已存在, 跳过")
+                logger.warning(f"下载的种子 {tor.get_name_id_tag()} 已存在, 跳过")
                 return True
+            elif msg:
+                logger.warning(f"从下载器获取种子 {tor.get_name_id_tag()} 失败：{err_msg}")
         else:
-            logger.warn(f"获取下载种子的信息出错{err_msg},不能检查该种子是否已暂停")
+            logger.warn(f"种子文件 {tor.get_name_id_tag()} 解析失败：{err_msg}")
 
         # 添加下载，辅种任务默认暂停
         logger.info(f"添加下载任务：{tor.get_name_id_tag()} ...")
@@ -1138,7 +1142,7 @@ class CrossSeed(_PluginBase):
             self.fail += 1
             self.cached += 1
             # 加入失败缓存
-            self._error_caches.append(tor.get_name_id_tag())
+            fail_cache.append(tor.torrent_id)
             return False
         else:
             self.success += 1
@@ -1151,7 +1155,7 @@ class CrossSeed(_PluginBase):
             # 下载成功
             logger.info(f"成功添加辅种下载，站点种子：{tor.get_name_id_tag()}")
             # 成功也加入缓存，有一些改了路径校验不通过的，手动删除后，下一次又会辅上
-            self._success_caches.append(tor.get_name_id_tag())
+            success_cache.append(tor.torrent_id)
             return True
 
     def __add_recheck_torrents(self, service: ServiceInfo, download_id: str):
@@ -1160,6 +1164,49 @@ class CrossSeed(_PluginBase):
         if not self._recheck_torrents.get(service.name):
             self._recheck_torrents[service.name] = []
         self._recheck_torrents[service.name].append(download_id)
+
+    def get_plugin_data(self, key: str, default: Any = None):
+        """
+        获取插件数据，支持多层结构的key
+        """
+        key_list = key.split(self.key_sep)
+        top_key = key_list.pop(0)
+        res = None
+        if top_key:
+            res = self.__get_plugin_data(key_list, self.get_data(top_key))
+        return res or default
+
+    def __get_plugin_data(self, key_list: list[str], data: Any):
+        if not data or len(key_list) == 0:
+            return data
+        key = key_list.pop(0)
+        res = None
+        if key:
+            res = self.__get_plugin_data(key_list, data.get(key))
+        return res
+
+    def set_plugin_data(self, key: str, value: Any):
+        """
+        保存插件数据，支持多层结构的key
+        """
+        key_list = key.split(self.key_sep)
+        top_key = key_list.pop(0)
+        if top_key:
+            top_value = self.__set_plugin_data(key_list, self.get_data(top_key), value)
+            if top_value:
+                self.save_data(top_key, top_value)
+
+    def __set_plugin_data(self, key_list: list[str], data: Any, value: Any):
+        if len(key_list) == 0:
+            return value
+        key = key_list.pop(0)
+        if key:
+            if data is None:
+                data = {}
+            res = self.__set_plugin_data(key_list, data.get(key), value)
+            if res:
+                data[key] = res
+        return data
 
     @staticmethod
     def __get_hash(torrent: Any, dl_type: str):
