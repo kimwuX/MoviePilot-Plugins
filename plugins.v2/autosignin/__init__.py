@@ -37,7 +37,7 @@ class AutoSignIn(_PluginBase):
     # 插件图标
     plugin_icon = "signin.png"
     # 插件版本
-    plugin_version = "2.6.1.3"
+    plugin_version = "2.7"
     # 插件作者
     plugin_author = "thsrite"
     # 作者主页
@@ -194,9 +194,9 @@ class AutoSignIn(_PluginBase):
             "kwargs": {} # 定时器参数
         }]
         """
-        if self._enabled and self._cron:
-            try:
-                if str(self._cron).strip().count(" ") == 4:
+        try:
+            if self._enabled:
+                if self._cron:
                     return [{
                         "id": "AutoSignIn",
                         "name": "站点自动签到服务",
@@ -205,63 +205,26 @@ class AutoSignIn(_PluginBase):
                         "kwargs": {}
                     }]
                 else:
-                    # 2.3/9-23
-                    crons = str(self._cron).strip().split("/")
-                    if len(crons) == 2:
-                        # 2.3
-                        cron = crons[0]
-                        # 9-23
-                        times = crons[1].split("-")
-                        if len(times) == 2:
-                            # 9
-                            self._start_time = int(times[0])
-                            # 23
-                            self._end_time = int(times[1])
-                        if self._start_time and self._end_time:
-                            return [{
-                                "id": "AutoSignIn",
-                                "name": "站点自动签到服务",
-                                "trigger": "interval",
-                                "func": self.sign_in,
-                                "kwargs": {
-                                    "hours": float(str(cron).strip()),
-                                }
-                            }]
-                        else:
-                            logger.error("站点自动签到服务启动失败，周期格式错误")
-                    else:
-                        # 默认0-24 按照周期运行
-                        return [{
-                            "id": "AutoSignIn",
-                            "name": "站点自动签到服务",
-                            "trigger": "interval",
-                            "func": self.sign_in,
-                            "kwargs": {
-                                "hours": float(str(self._cron).strip()),
-                            }
-                        }]
-            except Exception as err:
-                logger.error(f"定时任务配置错误：{str(err)}")
-        elif self._enabled:
-            # 随机时间
-            triggers = TimerUtils.random_scheduler(num_executions=2,
-                                                   begin_hour=9,
-                                                   end_hour=23,
-                                                   max_interval=6 * 60,
-                                                   min_interval=2 * 60)
-            ret_jobs = []
-            for trigger in triggers:
-                ret_jobs.append({
-                    "id": f"AutoSignIn|{trigger.hour}:{trigger.minute}",
-                    "name": "站点自动签到服务",
-                    "trigger": "cron",
-                    "func": self.sign_in,
-                    "kwargs": {
-                        "hour": trigger.hour,
-                        "minute": trigger.minute
-                    }
-                })
-            return ret_jobs
+                    # 随机两次执行时间
+                    triggers = TimerUtils.random_scheduler(num_executions=2,
+                                                        begin_hour=9,
+                                                        end_hour=23,
+                                                        max_interval=6 * 60,
+                                                        min_interval=2 * 60)
+                    logger.debug(f"随机时间：{[f"{trigger.hour}时{trigger.minute}分" for trigger in triggers]}")
+                    cron_list = [str(triggers[0].minute), str(triggers[0].hour), "*", "*", "*"]
+                    for i in range(1, len(triggers)):
+                        cron_list[1] += f",{triggers[i].hour}"
+                    logger.info("签到周期：" + " ".join(cron_list))
+                    return [{
+                        "id": "AutoSignIn",
+                        "name": "站点自动签到服务",
+                        "trigger": CronTrigger.from_crontab(" ".join(cron_list)),
+                        "func": self.sign_in,
+                        "kwargs": {}
+                    }]
+        except Exception as err:
+            logger.error(f"定时任务配置错误：{str(err)}")
         return []
 
     def get_form(self) -> Tuple[List[dict], Dict[str, Any]]:
@@ -1554,6 +1517,7 @@ class AutoSignIn(_PluginBase):
         render = site_info.get("render")
         proxies = settings.PROXY if site_info.get("proxy") else None
         proxy_server = settings.PROXY_SERVER if site_info.get("proxy") else None
+        timeout = site_info.get("timeout") or 60
         if not site_url or not site_cookie:
             logger.warn(f"未配置 {site} 的站点地址或Cookie，无法签到")
             return False, ""
@@ -1569,7 +1533,8 @@ class AutoSignIn(_PluginBase):
                 page_source = PlaywrightHelper().get_page_source(url=checkin_url,
                                                                  cookies=site_cookie,
                                                                  ua=ua,
-                                                                 proxies=proxy_server)
+                                                                 proxies=proxy_server,
+                                                                 timeout=timeout)
                 if not SiteUtils.is_logged_in(page_source):
                     if under_challenge(page_source):
                         return False, f"无法通过Cloudflare！"
@@ -1583,13 +1548,15 @@ class AutoSignIn(_PluginBase):
             else:
                 res = RequestUtils(cookies=site_cookie,
                                    ua=ua,
-                                   proxies=proxies
+                                   proxies=proxies,
+                                   timeout=timeout
                                    ).get_res(url=checkin_url)
                 if not res and site_url != checkin_url:
                     logger.info(f"开始站点模拟登录：{site}，地址：{site_url}...")
                     res = RequestUtils(cookies=site_cookie,
                                        ua=ua,
-                                       proxies=proxies
+                                       proxies=proxies,
+                                       timeout=timeout
                                        ).get_res(url=site_url)
                 # 判断登录状态
                 if res and res.status_code in [200, 500, 403]:
@@ -1656,6 +1623,7 @@ class AutoSignIn(_PluginBase):
         render = site_info.get("render")
         proxies = settings.PROXY if site_info.get("proxy") else None
         proxy_server = settings.PROXY_SERVER if site_info.get("proxy") else None
+        timeout = site_info.get("timeout") or 60
         if not site_url or not site_cookie:
             logger.warn(f"未配置 {site} 的站点地址或Cookie，无法签到")
             return False, ""
@@ -1668,7 +1636,8 @@ class AutoSignIn(_PluginBase):
                 page_source = PlaywrightHelper().get_page_source(url=site_url,
                                                                  cookies=site_cookie,
                                                                  ua=ua,
-                                                                 proxies=proxy_server)
+                                                                 proxies=proxy_server,
+                                                                 timeout=timeout)
                 if not SiteUtils.is_logged_in(page_source):
                     if under_challenge(page_source):
                         return False, f"无法通过Cloudflare！"
@@ -1678,7 +1647,8 @@ class AutoSignIn(_PluginBase):
             else:
                 res = RequestUtils(cookies=site_cookie,
                                    ua=ua,
-                                   proxies=proxies
+                                   proxies=proxies,
+                                   timeout=timeout
                                    ).get_res(url=site_url)
                 # 判断登录状态
                 if res and res.status_code in [200, 500, 403]:

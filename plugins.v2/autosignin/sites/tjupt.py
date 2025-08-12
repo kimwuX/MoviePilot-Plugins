@@ -56,6 +56,7 @@ class Tjupt(_ISiteSigninHandler):
         ua = settings.NORMAL_USER_AGENT
         proxy = site_info.get("proxy")
         render = site_info.get("render")
+        timeout = site_info.get("timeout")
 
         # 创建正确答案存储目录
         if not os.path.exists(os.path.dirname(self._answer_file)):
@@ -66,7 +67,8 @@ class Tjupt(_ISiteSigninHandler):
                                          cookie=site_cookie,
                                          ua=ua,
                                          proxy=proxy,
-                                         render=render)
+                                         render=render,
+                                         timeout=timeout)
 
         # 获取签到后返回html，判断是否签到成功
         if not html_text:
@@ -123,14 +125,15 @@ class Tjupt(_ISiteSigninHandler):
             # 本地存在本次hash对应的正确答案再遍历查询
             if captcha_answer:
                 for value, answer in answers:
-                    if str(captcha_answer) == str(answer):
+                    if captcha_answer == answer:
                         # 确实是答案
                         return self.__signin(value=value,
                                              answer=answer,
+                                             site=site,
                                              site_cookie=site_cookie,
                                              ua=ua,
                                              proxy=proxy,
-                                             site=site)
+                                             timeout=timeout)
 
             logger.info("本地未收录该答案，继续请求豆瓣查询")
         except Exception as e:
@@ -196,6 +199,7 @@ class Tjupt(_ISiteSigninHandler):
                                              site_cookie=site_cookie,
                                              ua=ua,
                                              proxy=proxy,
+                                             timeout=timeout,
                                              exits_answers=exits_answers,
                                              img_name=img_name)
 
@@ -203,7 +207,15 @@ class Tjupt(_ISiteSigninHandler):
         # 没有匹配签到成功，则签到失败
         return False, '签到失败，未获取到匹配答案'
 
-    def __signin(self, value, answer, site, site_cookie, ua, proxy, exits_answers=None, img_name=None) -> Tuple[bool, str]:
+    def __signin(self, value: str,
+                 answer: str,
+                 site: str,
+                 site_cookie: str,
+                 ua: str,
+                 proxy: bool,
+                 timeout: int,
+                 exits_answers: dict = None,
+                 img_name: str = None) -> Tuple[bool, str]:
         """
         签到请求
         """
@@ -214,7 +226,8 @@ class Tjupt(_ISiteSigninHandler):
         logger.debug(f"提交答案 {data}")
         sign_in_res = RequestUtils(cookies=site_cookie,
                                    ua=ua,
-                                   proxies=settings.PROXY if proxy else None
+                                   proxies=settings.PROXY if proxy else None,
+                                   timeout=timeout
                                    ).post_res(url=self._sign_in_url, data=data)
         if not sign_in_res or sign_in_res.status_code != 200:
             logger.error(f"{site} 签到失败，签到接口请求失败")

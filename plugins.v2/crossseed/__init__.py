@@ -974,7 +974,7 @@ class CrossSeed(_PluginBase):
                 chunk_tors, err_msg = self.cross_helper.get_target_torrent(site_config, chunk)
                 if chunk_tors is None:
                     logger.warning(
-                        f"站点{site_config.name}辅种进度{i + 1}-{i + len(chunk)}，查询失败：{err_msg},"
+                        f"站点{site_config.name}辅种进度{i + 1}-{i + len(chunk)}，查询失败：{err_msg}"
                     )
                 else:
                     logger.info(

@@ -56,6 +56,7 @@ class CHDBits(_ISiteSigninHandler):
         ua = settings.NORMAL_USER_AGENT
         proxy = site_info.get("proxy")
         render = site_info.get("render")
+        timeout = site_info.get("timeout")
 
         # 创建正确答案存储目录
         if not os.path.exists(os.path.dirname(self._answer_file)):
@@ -66,7 +67,8 @@ class CHDBits(_ISiteSigninHandler):
                                          cookie=site_cookie,
                                          ua=ua,
                                          proxy=proxy,
-                                         render=render)
+                                         render=render,
+                                         timeout=timeout)
 
         if not html_text:
             logger.error(f"{site} 签到失败，请检查站点连通性")
@@ -110,13 +112,20 @@ class CHDBits(_ISiteSigninHandler):
                                      site=site,
                                      site_cookie=site_cookie,
                                      ua=ua,
-                                     proxy=proxy)
+                                     proxy=proxy,
+                                     timeout=timeout)
         except Exception as e:
             logger.debug(f"查询本地已知答案失败：{str(e)}")
 
         return False, '签到失败，未收录该题答案'
 
-    def __signin(self, questionid: str, choice: list, site: str, site_cookie: str, ua: str, proxy: bool) -> Tuple[bool, str]:
+    def __signin(self, questionid: str,
+                 choice: list,
+                 site: str,
+                 site_cookie: str,
+                 ua: str,
+                 proxy: bool,
+                 timeout: int) -> Tuple[bool, str]:
         """
         签到请求
         questionid: 450
@@ -136,7 +145,8 @@ class CHDBits(_ISiteSigninHandler):
 
         sign_res = RequestUtils(cookies=site_cookie,
                                 ua=ua,
-                                proxies=settings.PROXY if proxy else None
+                                proxies=settings.PROXY if proxy else None,
+                                timeout=timeout
                                 ).post_res(url=self._sign_in_url, data=data)
         if not sign_res or sign_res.status_code != 200:
             logger.error(f"{site} 签到失败，签到接口请求失败")

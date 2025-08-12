@@ -47,9 +47,11 @@ class U2(_ISiteSigninHandler):
         """
         site = site_info.get("name")
         site_cookie = site_info.get("cookie")
-        ua = site_info.get("ua")
+        # ua = site_info.get("ua")
+        ua = settings.NORMAL_USER_AGENT
         proxy = site_info.get("proxy")
         render = site_info.get("render")
+        timeout = site_info.get("timeout")
 
         now = datetime.datetime.now()
         # 判断当前时间是否小于9点
@@ -62,7 +64,8 @@ class U2(_ISiteSigninHandler):
                                          cookie=site_cookie,
                                          ua=ua,
                                          proxy=proxy,
-                                         render=render)
+                                         render=render,
+                                         timeout=timeout)
         if not html_text:
             logger.error(f"{site} 签到失败，请检查站点连通性")
             return False, '签到失败，请检查站点连通性'
@@ -106,7 +109,8 @@ class U2(_ISiteSigninHandler):
         # 签到
         sign_res = RequestUtils(cookies=site_cookie,
                                 ua=ua,
-                                proxies=settings.PROXY if proxy else None
+                                proxies=settings.PROXY if proxy else None,
+                                timeout=timeout
                                 ).post_res(url="https://u2.dmhy.org/showup.php?action=show",
                                            data=data)
         if not sign_res or sign_res.status_code != 200:
