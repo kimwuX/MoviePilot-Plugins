@@ -27,10 +27,11 @@
         "name": "站点自动签到",
         "description": "自动模拟登录、签到站点。",
         "labels": "站点",
-        "version": "2.7",
+        "version": "2.7.0.1",
         "icon": "signin.png",
         "author": "thsrite",
         "level": 2,
+        "release": true,
         "history": {
             "v2.7": "站点请求使用站点设置的超时时间",
             "v2.6.1": "修复历史记录只显示一天!",
