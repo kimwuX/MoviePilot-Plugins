@@ -14,10 +14,11 @@ class HDCity(_ISiteSigninHandler):
     # 匹配的站点Url，每一个实现类都需要设置为自己的站点Url
     site_url = "hdcity.city"
 
+    # 已签到
+    _sign_regex = ['今天已经签过到', 'Already checked in today']
+
     # 签到成功
-    _success_text = '本次签到获得魅力'
-    # 重复签到
-    _repeat_text = '已签到'
+    _succeed_regex = ['本次签到获得魅力', 'Bonus earned today']
 
     @classmethod
     def match(cls, url: str) -> bool:
@@ -56,13 +57,17 @@ class HDCity(_ISiteSigninHandler):
             logger.error(f"{site} 签到失败，Cookie已失效")
             return False, '签到失败，Cookie已失效'
 
-        # 判断是否已签到
-        # '已连续签到278天，此次签到您获得了100魔力值奖励!'
-        if self._success_text in html_text:
-            logger.info(f"{site} 签到成功")
-            return True, '签到成功'
-        if self._repeat_text in html_text:
+        sign_status = self.sign_in_result(html_res=html_text,
+                                          regexs=self._sign_regex)
+        if sign_status:
             logger.info(f"{site} 今日已签到")
             return True, '今日已签到'
+
+        sign_status = self.sign_in_result(html_res=html_text,
+                                          regexs=self._succeed_regex)
+        if sign_status:
+            logger.info(f"{site} 签到成功")
+            return True, '签到成功'
+
         logger.error(f"{site} 签到失败，签到接口返回 {html_text}")
         return False, '签到失败'

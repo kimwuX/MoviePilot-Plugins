@@ -14,6 +14,9 @@ class PTTime(_ISiteSigninHandler):
     # 匹配的站点Url，每一个实现类都需要设置为自己的站点Url
     site_url = "pttime.org"
 
+    # 已签到
+    _sign_regex = ['已签到，无需再签']
+
     # 签到成功
     _succeed_regex = ['签到成功']
 
@@ -55,6 +58,12 @@ class PTTime(_ISiteSigninHandler):
         if "login.php" in html_text:
             logger.error(f"{site} 签到失败，Cookie已失效")
             return False, '签到失败，Cookie已失效'
+
+        sign_status = self.sign_in_result(html_res=html_text,
+                                          regexs=self._sign_regex)
+        if sign_status:
+            logger.info(f"{site} 今日已签到")
+            return True, '今日已签到'
 
         sign_status = self.sign_in_result(html_res=html_text,
                                           regexs=self._succeed_regex)
