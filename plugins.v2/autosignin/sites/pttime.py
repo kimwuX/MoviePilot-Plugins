@@ -15,6 +15,7 @@ class PTTime(_ISiteSigninHandler):
     site_url = "pttime.org"
 
     # 已签到
+    # 拒绝访问：已签到，无需再签
     _sign_regex = ['已签到，无需再签']
 
     # 签到成功

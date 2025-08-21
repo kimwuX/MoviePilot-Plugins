@@ -6,6 +6,7 @@ from multiprocessing.pool import ThreadPool
 from typing import Any, List, Dict, Tuple, Optional
 from urllib.parse import urljoin
 
+import chardet
 import pytz
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
@@ -37,7 +38,7 @@ class AutoSignIn(_PluginBase):
     # 插件图标
     plugin_icon = "signin.png"
     # 插件版本
-    plugin_version = "2.7.0.2"
+    plugin_version = "2.7.0.3"
     # 插件作者
     plugin_author = "thsrite"
     # 作者主页
@@ -394,6 +395,7 @@ class AutoSignIn(_PluginBase):
                                         'props': {
                                             'chips': True,
                                             'multiple': True,
+                                            'clearable': True,
                                             'model': 'sign_sites',
                                             'label': '签到站点',
                                             'items': site_options
@@ -414,6 +416,7 @@ class AutoSignIn(_PluginBase):
                                         'props': {
                                             'chips': True,
                                             'multiple': True,
+                                            'clearable': True,
                                             'model': 'login_sites',
                                             'label': '登录站点',
                                             'items': site_options
@@ -1491,7 +1494,7 @@ class AutoSignIn(_PluginBase):
                 traceback.print_exc()
                 state, message = False, f"签到失败：{str(e)}"
         else:
-            state, message = self.__signin_base(site_info)
+            state, message = AutoSignIn.__signin_base(site_info)
         # 统计
         seconds = (datetime.now() - start_time).seconds
         domain = StringUtils.get_url_domain(site_info.get('url'))
@@ -1515,73 +1518,61 @@ class AutoSignIn(_PluginBase):
         site_cookie = site_info.get("cookie")
         ua = site_info.get("ua")
         render = site_info.get("render")
-        proxies = settings.PROXY if site_info.get("proxy") else None
-        proxy_server = settings.PROXY_SERVER if site_info.get("proxy") else None
-        timeout = site_info.get("timeout") or 60
+        proxy = site_info.get("proxy")
+        timeout = site_info.get("timeout")
         if not site_url or not site_cookie:
             logger.warn(f"未配置 {site} 的站点地址或Cookie，无法签到")
             return False, ""
-        # 模拟登录
+
+        # 已签到
+        # 您今天已经签到过了，请勿重复刷新。
+        re_signed = [r'您今天已经签到过了，请勿重复刷新']
+
+        # 签到成功
+        # 这是您的第233次签到，已连续签到233天，本次签到获得1000个憨豆。
+        # 这是您的第 <b>233</b> 次签到，已连续签到 <b>233</b> 天，本次签到获得 <b>233</b> 个啤酒瓶。
+        # 這是您的第 <b>233</b> 次簽到，已連續簽到 <b>233</b> 天，本次簽到獲得 <b>233</b> 個魔力值。
+        re_success = [r'连续签到\s*\S*?\d+\S*?\s*天，本次签到获得',
+                      r'連續簽到\s*\S*?\d+\S*?\s*天，本次簽到獲得']
+
+        # 模拟签到
         try:
-            # 访问链接
-            checkin_url = site_url
-            if site_url.find("attendance.php") == -1:
-                # 拼登签到地址
-                checkin_url = urljoin(site_url, "attendance.php")
-            logger.info(f"开始站点签到：{site}，地址：{checkin_url}...")
-            if render:
-                page_source = PlaywrightHelper().get_page_source(url=checkin_url,
-                                                                 cookies=site_cookie,
-                                                                 ua=ua,
-                                                                 proxies=proxy_server,
-                                                                 timeout=timeout)
-                if not SiteUtils.is_logged_in(page_source):
-                    if under_challenge(page_source):
-                        return False, f"无法通过Cloudflare！"
-                    return False, f"仿真登录失败，Cookie已失效！"
-                else:
-                    # 判断是否已签到
-                    if re.search(r'已签|签到已得', page_source, re.IGNORECASE) \
-                            or SiteUtils.is_checkin(page_source):
-                        return True, f"签到成功"
-                    return True, "仿真签到成功"
-            else:
-                res = RequestUtils(cookies=site_cookie,
-                                   ua=ua,
-                                   proxies=proxies,
-                                   timeout=timeout
-                                   ).get_res(url=checkin_url)
-                if not res and site_url != checkin_url:
-                    logger.info(f"开始站点模拟登录：{site}，地址：{site_url}...")
-                    res = RequestUtils(cookies=site_cookie,
-                                       ua=ua,
-                                       proxies=proxies,
-                                       timeout=timeout
-                                       ).get_res(url=site_url)
-                # 判断登录状态
-                if res and res.status_code in [200, 500, 403]:
-                    if not SiteUtils.is_logged_in(res.text):
-                        if under_challenge(res.text):
-                            msg = "站点被Cloudflare防护，请打开站点浏览器仿真"
-                        elif res.status_code == 200:
-                            msg = "Cookie已失效"
-                        else:
-                            msg = f"状态码：{res.status_code}"
-                        logger.warn(f"{site} 签到失败，{msg}")
-                        return False, f"签到失败，{msg}！"
-                    else:
-                        logger.info(f"{site} 签到成功")
-                        return True, f"签到成功"
-                elif res is not None:
-                    logger.warn(f"{site} 签到失败，状态码：{res.status_code}")
-                    return False, f"签到失败，状态码：{res.status_code}！"
-                else:
-                    logger.warn(f"{site} 签到失败，无法打开网站")
-                    return False, f"签到失败，无法打开网站！"
+            # 签到地址
+            checkin_url = urljoin(site_url, "attendance.php")
+            logger.info(f"开始签到 {site}，地址：{checkin_url}")
+            html_text = AutoSignIn.get_page_source(url=checkin_url,
+                                            cookie=site_cookie,
+                                            ua=ua,
+                                            proxy=proxy,
+                                            render=render,
+                                            timeout=timeout)
+
+            if not html_text:
+                logger.warn(f"{site} 签到失败，请检查站点连通性")
+                return False, '签到失败，请检查站点连通性'
+
+            if not SiteUtils.is_logged_in(html_text):
+                logger.warn(f"{site} 签到失败，Cookie已失效")
+                return False, '签到失败，Cookie已失效'
+
+            # 已签到
+            for regex in re_signed:
+                if re.search(regex, html_text):
+                    logger.info(f"{site} 今日已签到")
+                    return True, '今日已签到'
+
+            # 签到成功
+            for regex in re_success:
+                if re.search(regex, html_text):
+                    logger.info(f"{site} 签到成功")
+                    return True, '签到成功'
+
+            logger.warn(f"{site} 签到失败，接口返回 {html_text}")
+            return False, '签到失败'
         except Exception as e:
-            logger.warn("%s 签到失败：%s" % (site, str(e)))
             traceback.print_exc()
-            return False, f"签到失败：{str(e)}！"
+            logger.warn(f"{site} 签到失败：{str(e)}")
+            return False, f"签到失败"
 
     def login_site(self, site_info: CommentedMap) -> Tuple[str, str]:
         """
@@ -1597,7 +1588,7 @@ class AutoSignIn(_PluginBase):
                 traceback.print_exc()
                 state, message = False, f"模拟登录失败：{str(e)}"
         else:
-            state, message = self.__login_base(site_info)
+            state, message = AutoSignIn.__login_base(site_info)
         # 统计
         seconds = (datetime.now() - start_time).seconds
         domain = StringUtils.get_url_domain(site_info.get('url'))
@@ -1612,7 +1603,7 @@ class AutoSignIn(_PluginBase):
         """
         模拟登录通用处理
         :param site_info: 站点信息
-        :return: 签到结果信息
+        :return: 模拟登录结果信息
         """
         if not site_info:
             return False, ""
@@ -1621,59 +1612,86 @@ class AutoSignIn(_PluginBase):
         site_cookie = site_info.get("cookie")
         ua = site_info.get("ua")
         render = site_info.get("render")
-        proxies = settings.PROXY if site_info.get("proxy") else None
-        proxy_server = settings.PROXY_SERVER if site_info.get("proxy") else None
-        timeout = site_info.get("timeout") or 60
+        proxy = site_info.get("proxy")
+        timeout = site_info.get("timeout")
         if not site_url or not site_cookie:
-            logger.warn(f"未配置 {site} 的站点地址或Cookie，无法签到")
+            logger.warn(f"未配置 {site} 的站点地址或Cookie，无法模拟登录")
             return False, ""
+
         # 模拟登录
         try:
-            # 访问链接
-            site_url = str(site_url).replace("attendance.php", "")
-            logger.info(f"开始站点模拟登录：{site}，地址：{site_url}...")
-            if render:
-                page_source = PlaywrightHelper().get_page_source(url=site_url,
-                                                                 cookies=site_cookie,
-                                                                 ua=ua,
-                                                                 proxies=proxy_server,
-                                                                 timeout=timeout)
-                if not SiteUtils.is_logged_in(page_source):
-                    if under_challenge(page_source):
-                        return False, f"无法通过Cloudflare！"
-                    return False, f"仿真登录失败，Cookie已失效！"
-                else:
-                    return True, "模拟登录成功"
-            else:
-                res = RequestUtils(cookies=site_cookie,
-                                   ua=ua,
-                                   proxies=proxies,
-                                   timeout=timeout
-                                   ).get_res(url=site_url)
-                # 判断登录状态
-                if res and res.status_code in [200, 500, 403]:
-                    if not SiteUtils.is_logged_in(res.text):
-                        if under_challenge(res.text):
-                            msg = "站点被Cloudflare防护，请打开站点浏览器仿真"
-                        elif res.status_code == 200:
-                            msg = "Cookie已失效"
-                        else:
-                            msg = f"状态码：{res.status_code}"
-                        logger.warn(f"{site} 模拟登录失败，{msg}")
-                        return False, f"模拟登录失败，{msg}！"
-                    else:
-                        logger.info(f"{site} 模拟登录成功")
-                        return True, f"模拟登录成功"
-                elif res is not None:
-                    logger.warn(f"{site} 模拟登录失败，状态码：{res.status_code}")
-                    return False, f"模拟登录失败，状态码：{res.status_code}！"
-                else:
-                    logger.warn(f"{site} 模拟登录失败，无法打开网站")
-                    return False, f"模拟登录失败，无法打开网站！"
+            logger.info(f"开始模拟登录 {site}，地址：{site_url}")
+            html_text = AutoSignIn.get_page_source(url=site_url,
+                                            cookie=site_cookie,
+                                            ua=ua,
+                                            proxy=proxy,
+                                            render=render,
+                                            timeout=timeout)
+
+            if not html_text:
+                logger.warn(f"{site} 模拟登录失败，请检查站点连通性")
+                return False, '模拟登录失败，请检查站点连通性'
+
+            if not SiteUtils.is_logged_in(html_text):
+                logger.warn(f"{site} 模拟登录失败，Cookie已失效")
+                return False, '模拟登录失败，Cookie已失效'
+
+            logger.info(f"{site} 模拟登录成功")
+            return True, '模拟登录成功'
         except Exception as e:
-            logger.warn("%s 模拟登录失败：%s" % (site, str(e)))
             traceback.print_exc()
-            return False, f"模拟登录失败：{str(e)}！"
+            logger.warn(f"{site} 模拟登录失败：{str(e)}")
+            return False, f"模拟登录失败"
+
+    @staticmethod
+    def get_page_source(url: str, cookie: str, ua: str, proxy: bool, render: bool,
+                        token: str = None, timeout: int = None) -> str:
+        """
+        获取页面源码
+        :param url: Url地址
+        :param cookie: Cookie
+        :param ua: UA
+        :param proxy: 是否使用代理
+        :param render: 是否渲染
+        :param token: JWT Token
+        :param timeout: 请求超时时间，单位秒
+        :return: 页面源码，错误信息
+        """
+        if render:
+            return PlaywrightHelper().get_page_source(url=url,
+                                                      cookies=cookie,
+                                                      ua=ua,
+                                                      proxies=settings.PROXY_SERVER if proxy else None,
+                                                      timeout=timeout or 60)
+        else:
+            if token:
+                headers = {
+                    "Authorization": token,
+                    "User-Agent": ua
+                }
+            else:
+                headers = {
+                    "User-Agent": ua,
+                    "Cookie": cookie
+                }
+            res = RequestUtils(headers=headers,
+                               proxies=settings.PROXY if proxy else None,
+                               timeout=timeout or 20).get_res(url=url)
+            if res is not None:
+                # 使用chardet检测字符编码
+                raw_data = res.content
+                if raw_data:
+                    try:
+                        result = chardet.detect(raw_data)
+                        encoding = result['encoding']
+                        # 解码为字符串
+                        return raw_data.decode(encoding)
+                    except Exception as e:
+                        logger.error(f"chardet解码失败：{str(e)}")
+                        return res.text
+                else:
+                    return res.text
+            return ""
 
     def stop_service(self):
         """
