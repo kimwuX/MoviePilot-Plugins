@@ -1524,6 +1524,9 @@ class AutoSignIn(_PluginBase):
             logger.warn(f"未配置 {site} 的站点地址或Cookie，无法签到")
             return False, ""
 
+        # cloudflare challenge
+        re_cf = [r'cf-turnstile']
+
         # 已签到
         # 您今天已经签到过了，请勿重复刷新。
         re_signed = [r'您今天已经签到过了，请勿重复刷新']
@@ -1538,7 +1541,7 @@ class AutoSignIn(_PluginBase):
         # 模拟签到
         try:
             # 签到地址
-            checkin_url = urljoin(site_url, "attendance.php")
+            checkin_url = urljoin(site_url, "/attendance.php")
             logger.info(f"开始签到 {site}，地址：{checkin_url}")
             html_text = AutoSignIn.get_page_source(url=checkin_url,
                                             cookie=site_cookie,
@@ -1551,9 +1554,18 @@ class AutoSignIn(_PluginBase):
                 logger.warn(f"{site} 签到失败，请检查站点连通性")
                 return False, '签到失败，请检查站点连通性'
 
+            if under_challenge(html_text):
+                logger.warn(f"{site} 签到失败，无法通过Cloudflare")
+                return False, '签到失败，无法通过Cloudflare'
+
             if not SiteUtils.is_logged_in(html_text):
                 logger.warn(f"{site} 签到失败，Cookie已失效")
                 return False, '签到失败，Cookie已失效'
+
+            for regex in re_cf:
+                if re.search(regex, html_text):
+                    logger.info(f"{site} 签到失败，签到页面被Cloudflare防护")
+                    return False, '签到失败，签到页面被Cloudflare防护'
 
             # 已签到
             for regex in re_signed:
@@ -1572,7 +1584,7 @@ class AutoSignIn(_PluginBase):
         except Exception as e:
             traceback.print_exc()
             logger.warn(f"{site} 签到失败：{str(e)}")
-            return False, f"签到失败"
+            return False, '签到失败'
 
     def login_site(self, site_info: CommentedMap) -> Tuple[str, str]:
         """
@@ -1632,6 +1644,10 @@ class AutoSignIn(_PluginBase):
                 logger.warn(f"{site} 模拟登录失败，请检查站点连通性")
                 return False, '模拟登录失败，请检查站点连通性'
 
+            if under_challenge(html_text):
+                logger.warn(f"{site} 模拟登录失败，无法通过Cloudflare")
+                return False, '模拟登录失败，无法通过Cloudflare'
+
             if not SiteUtils.is_logged_in(html_text):
                 logger.warn(f"{site} 模拟登录失败，Cookie已失效")
                 return False, '模拟登录失败，Cookie已失效'
@@ -1641,7 +1657,7 @@ class AutoSignIn(_PluginBase):
         except Exception as e:
             traceback.print_exc()
             logger.warn(f"{site} 模拟登录失败：{str(e)}")
-            return False, f"模拟登录失败"
+            return False, '模拟登录失败'
 
     @staticmethod
     def get_page_source(url: str, cookie: str, ua: str, proxy: bool, render: bool,
@@ -1674,23 +1690,32 @@ class AutoSignIn(_PluginBase):
                     "User-Agent": ua,
                     "Cookie": cookie
                 }
-            res = RequestUtils(headers=headers,
+            req = RequestUtils(headers=headers,
                                proxies=settings.PROXY if proxy else None,
-                               timeout=timeout or 20).get_res(url=url)
-            if res is not None:
+                               timeout=timeout or 20
+                               ).get_res(url=url, allow_redirects=False)
+            while req and req.status_code in [301, 302]:
+                logger.info(f"重定向 {url} -> {req.headers['Location']}")
+                url = req.headers['Location']
+                req = RequestUtils(headers=headers,
+                                   proxies=settings.PROXY if proxy else None,
+                                   timeout=timeout or 20
+                                   ).get_res(url=url, allow_redirects=False)
+            if req is not None:
                 # 使用chardet检测字符编码
-                raw_data = res.content
+                raw_data = req.content
                 if raw_data:
                     try:
-                        result = chardet.detect(raw_data)
-                        encoding = result['encoding']
+                        # result = chardet.detect(raw_data)
+                        # encoding = result['encoding']
                         # 解码为字符串
-                        return raw_data.decode(encoding)
+                        # return raw_data.decode(encoding)
+                        return raw_data.decode()
                     except Exception as e:
-                        logger.error(f"chardet解码失败：{str(e)}")
-                        return res.text
+                        logger.error(f"{url} 页面解码失败：{str(e)}")
+                        return req.text
                 else:
-                    return res.text
+                    return req.text
             return ""
 
     def stop_service(self):

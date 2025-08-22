@@ -70,6 +70,8 @@ class HDSky(_ISiteSigninHandler):
         res_times = 0
         img_hash = None
         while not img_hash and res_times <= 3:
+            if res_times > 0:
+                logger.warn(f"获取 {site} 验证码失败，正在进行重试，目前重试次数：{res_times}")
             image_res = RequestUtils(cookies=site_cookie,
                                      ua=ua,
                                      content_type='application/x-www-form-urlencoded; charset=UTF-8',
@@ -85,7 +87,6 @@ class HDSky(_ISiteSigninHandler):
                     img_hash = image_json["code"]
                     break
                 res_times += 1
-                logger.info(f"获取 {site} 验证码失败，正在进行重试，目前重试次数：{res_times}")
                 time.sleep(1)
 
         # 获取到二维码hash
@@ -98,17 +99,18 @@ class HDSky(_ISiteSigninHandler):
             ocr_result = None
             # 识别几次
             while times <= 3:
+                if times > 0:
+                    logger.warn(f"OCR识别 {site} 验证码失败，正在进行重试，目前重试次数：{times}")
                 # ocr二维码识别
                 ocr_result = OcrHelper().get_captcha_text(image_url=img_get_url,
                                                           cookie=site_cookie,
                                                           ua=ua)
-                logger.info(f"OCR识别 {site} 验证码：{ocr_result}")
                 if ocr_result:
                     if len(ocr_result) == 6:
                         logger.info(f"OCR识别 {site} 验证码成功：{ocr_result}")
                         break
+                    logger.warn(f"OCR识别 {site} 验证码有误：{ocr_result}")
                 times += 1
-                logger.info(f"OCR识别 {site} 验证码失败，正在进行重试，目前重试次数：{times}")
                 time.sleep(1)
 
             if ocr_result:

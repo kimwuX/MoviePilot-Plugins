@@ -72,23 +72,32 @@ class _ISiteSigninHandler(metaclass=ABCMeta):
                     "User-Agent": ua,
                     "Cookie": cookie
                 }
-            res = RequestUtils(headers=headers,
+            req = RequestUtils(headers=headers,
                                proxies=settings.PROXY if proxy else None,
-                               timeout=timeout or 20).get_res(url=url)
-            if res is not None:
+                               timeout=timeout or 20
+                               ).get_res(url=url, allow_redirects=False)
+            while req and req.status_code in [301, 302]:
+                logger.info(f"重定向 {url} -> {req.headers['Location']}")
+                url = req.headers['Location']
+                req = RequestUtils(headers=headers,
+                                   proxies=settings.PROXY if proxy else None,
+                                   timeout=timeout or 20
+                                   ).get_res(url=url, allow_redirects=False)
+            if req is not None:
                 # 使用chardet检测字符编码
-                raw_data = res.content
+                raw_data = req.content
                 if raw_data:
                     try:
-                        result = chardet.detect(raw_data)
-                        encoding = result['encoding']
+                        # result = chardet.detect(raw_data)
+                        # encoding = result['encoding']
                         # 解码为字符串
-                        return raw_data.decode(encoding)
+                        # return raw_data.decode(encoding)
+                        return raw_data.decode()
                     except Exception as e:
-                        logger.error(f"chardet解码失败：{str(e)}")
-                        return res.text
+                        logger.error(f"{url} 页面解码失败：{str(e)}")
+                        return req.text
                 else:
-                    return res.text
+                    return req.text
             return ""
 
     @staticmethod
