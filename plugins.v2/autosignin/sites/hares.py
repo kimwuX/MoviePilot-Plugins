@@ -51,11 +51,11 @@ class Hares(_ISiteSigninHandler):
                                          timeout=timeout)
 
         if not html_text:
-            logger.error(f"{site} 模拟访问失败，请检查站点连通性")
+            logger.warn(f"{site} 模拟访问失败，请检查站点连通性")
             return False, '模拟访问失败，请检查站点连通性'
 
         if "login.php" in html_text:
-            logger.error(f"{site} 模拟访问失败，Cookie已失效")
+            logger.warn(f"{site} 模拟访问失败，Cookie已失效")
             return False, '模拟访问失败，Cookie已失效'
 
         # if self._sign_text in html_res.text:
@@ -72,7 +72,7 @@ class Hares(_ISiteSigninHandler):
                                 timeout=timeout
                                 ).get_res(url="https://club.hares.top/attendance.php?action=sign")
         if not sign_res or sign_res.status_code != 200:
-            logger.error(f"{site} 签到失败，签到接口请求失败")
+            logger.warn(f"{site} 签到失败，签到接口请求失败")
             return False, '签到失败，签到接口请求失败'
 
         # {"code":1,"msg":"您今天已经签到过了"}

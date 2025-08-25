@@ -2,8 +2,8 @@
 import re
 from abc import ABCMeta, abstractmethod
 from typing import Tuple
+from urllib.parse import urljoin
 
-import chardet
 from ruamel.yaml import CommentedMap
 
 from app.core.config import settings
@@ -76,9 +76,9 @@ class _ISiteSigninHandler(metaclass=ABCMeta):
                                proxies=settings.PROXY if proxy else None,
                                timeout=timeout or 20
                                ).get_res(url=url, allow_redirects=False)
-            while req and req.status_code in [301, 302]:
+            while req and req.status_code in [301, 302] and req.headers['Location']:
                 logger.info(f"重定向 {url} -> {req.headers['Location']}")
-                url = req.headers['Location']
+                url = urljoin(url, req.headers['Location'])
                 req = RequestUtils(headers=headers,
                                    proxies=settings.PROXY if proxy else None,
                                    timeout=timeout or 20
@@ -88,10 +88,6 @@ class _ISiteSigninHandler(metaclass=ABCMeta):
                 raw_data = req.content
                 if raw_data:
                     try:
-                        # result = chardet.detect(raw_data)
-                        # encoding = result['encoding']
-                        # 解码为字符串
-                        # return raw_data.decode(encoding)
                         return raw_data.decode()
                     except Exception as e:
                         logger.error(f"{url} 页面解码失败：{str(e)}")

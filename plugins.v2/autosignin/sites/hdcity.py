@@ -50,11 +50,11 @@ class HDCity(_ISiteSigninHandler):
                                          render=render,
                                          timeout=timeout)
         if not html_text:
-            logger.error(f"{site} 签到失败，请检查站点连通性")
+            logger.warn(f"{site} 签到失败，请检查站点连通性")
             return False, '签到失败，请检查站点连通性'
 
         if "login" in html_text:
-            logger.error(f"{site} 签到失败，Cookie已失效")
+            logger.warn(f"{site} 签到失败，Cookie已失效")
             return False, '签到失败，Cookie已失效'
 
         sign_status = self.sign_in_result(html_res=html_text,
@@ -69,5 +69,5 @@ class HDCity(_ISiteSigninHandler):
             logger.info(f"{site} 签到成功")
             return True, '签到成功'
 
-        logger.error(f"{site} 签到失败，签到接口返回 {html_text}")
+        logger.warn(f"{site} 签到失败，签到接口返回 {html_text}")
         return False, '签到失败'

@@ -53,11 +53,11 @@ class HDSky(_ISiteSigninHandler):
                                          render=render,
                                          timeout=timeout)
         if not html_text:
-            logger.error(f"{site} 签到失败，请检查站点连通性")
+            logger.warn(f"{site} 签到失败，请检查站点连通性")
             return False, '签到失败，请检查站点连通性'
 
         if "login.php" in html_text:
-            logger.error(f"{site} 签到失败，Cookie已失效")
+            logger.warn(f"{site} 签到失败，Cookie已失效")
             return False, '签到失败，Cookie已失效'
 
         sign_status = self.sign_in_result(html_res=html_text,
@@ -139,5 +139,5 @@ class HDSky(_ISiteSigninHandler):
                         logger.warn(f"{site} 签到失败：验证码错误")
                         return False, '签到失败：验证码错误'
 
-        logger.error(f'{site} 签到失败：未获取到验证码')
+        logger.warn(f'{site} 签到失败：未获取到验证码')
         return False, '签到失败：未获取到验证码'

@@ -40,27 +40,19 @@ class HaiDan(_ISiteSigninHandler):
         timeout = site_info.get("timeout")
 
         # 签到
-        # 签到页会重定向到index.php，由于302重定向特性，导致index.php没有携带cookie
-        self.get_page_source(url='https://www.haidan.video/signin.php',
-                             cookie=site_cookie,
-                             ua=ua,
-                             proxy=proxy,
-                             render=render,
-                             timeout=timeout)
-
-        # 重新携带cookie获取index.php查看签到结果
-        html_text = self.get_page_source(url='https://www.haidan.video/index.php',
+        html_text = self.get_page_source(url='https://www.haidan.video/signin.php',
                                          cookie=site_cookie,
                                          ua=ua,
                                          proxy=proxy,
                                          render=render,
                                          timeout=timeout)
+
         if not html_text:
-            logger.error(f"{site} 签到失败，请检查站点连通性")
+            logger.warn(f"{site} 签到失败，请检查站点连通性")
             return False, '签到失败，请检查站点连通性'
 
         if "login.php" in html_text:
-            logger.error(f"{site} 签到失败，Cookie已失效")
+            logger.warn(f"{site} 签到失败，Cookie已失效")
             return False, '签到失败，Cookie已失效'
 
         sign_status = self.sign_in_result(html_res=html_text,
@@ -69,5 +61,5 @@ class HaiDan(_ISiteSigninHandler):
             logger.info(f"{site} 签到成功")
             return True, '签到成功'
 
-        logger.error(f"{site} 签到失败，签到接口返回 {html_text}")
+        logger.warn(f"{site} 签到失败，签到接口返回 {html_text}")
         return False, '签到失败'

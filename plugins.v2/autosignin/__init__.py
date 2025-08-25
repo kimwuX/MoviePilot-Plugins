@@ -6,7 +6,6 @@ from multiprocessing.pool import ThreadPool
 from typing import Any, List, Dict, Tuple, Optional
 from urllib.parse import urljoin
 
-import chardet
 import pytz
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
@@ -38,7 +37,7 @@ class AutoSignIn(_PluginBase):
     # 插件图标
     plugin_icon = "signin.png"
     # 插件版本
-    plugin_version = "2.7.0.3"
+    plugin_version = "2.7.0.5"
     # 插件作者
     plugin_author = "thsrite"
     # 作者主页
@@ -1377,7 +1376,7 @@ class AutoSignIn(_PluginBase):
 
                 if 'Cookie已失效' in str(s) and site_id:
                     # 触发自动登录插件登录
-                    logger.info(f"触发站点 {site_name} 自动登录更新Cookie和Ua")
+                    logger.info(f"触发站点 {site_name} 自动登录更新Cookie和UA")
                     self.eventmanager.send_event(EventType.PluginAction,
                                                  {
                                                      "site_id": site_id,
@@ -1527,6 +1526,9 @@ class AutoSignIn(_PluginBase):
         # cloudflare challenge
         re_cf = [r'cf-turnstile']
 
+        # safeline firewall
+        re_sl = [r'slg-title', r'slg-box', r'sl-box']
+
         # 已签到
         # 您今天已经签到过了，请勿重复刷新。
         re_signed = [r'您今天已经签到过了，请勿重复刷新']
@@ -1555,8 +1557,13 @@ class AutoSignIn(_PluginBase):
                 return False, '签到失败，请检查站点连通性'
 
             if under_challenge(html_text):
-                logger.warn(f"{site} 签到失败，无法通过Cloudflare")
-                return False, '签到失败，无法通过Cloudflare'
+                logger.warn(f"{site} 签到失败，无法绕过Cloudflare检测")
+                return False, '签到失败，无法绕过Cloudflare检测'
+
+            for regex in re_sl:
+                if re.search(regex, html_text):
+                    logger.warn(f"{site} 签到失败，无法绕过雷池检测")
+                    return False, '签到失败，无法绕过雷池检测'
 
             if not SiteUtils.is_logged_in(html_text):
                 logger.warn(f"{site} 签到失败，Cookie已失效")
@@ -1564,8 +1571,8 @@ class AutoSignIn(_PluginBase):
 
             for regex in re_cf:
                 if re.search(regex, html_text):
-                    logger.info(f"{site} 签到失败，签到页面被Cloudflare防护")
-                    return False, '签到失败，签到页面被Cloudflare防护'
+                    logger.warn(f"{site} 签到失败，签到页面已被Cloudflare防护")
+                    return False, '签到失败，签到页面已被Cloudflare防护'
 
             # 已签到
             for regex in re_signed:
@@ -1630,6 +1637,9 @@ class AutoSignIn(_PluginBase):
             logger.warn(f"未配置 {site} 的站点地址或Cookie，无法模拟登录")
             return False, ""
 
+        # safeline firewall
+        re_sl = [r'slg-title', r'slg-box', r'sl-box']
+
         # 模拟登录
         try:
             logger.info(f"开始模拟登录 {site}，地址：{site_url}")
@@ -1645,8 +1655,13 @@ class AutoSignIn(_PluginBase):
                 return False, '模拟登录失败，请检查站点连通性'
 
             if under_challenge(html_text):
-                logger.warn(f"{site} 模拟登录失败，无法通过Cloudflare")
-                return False, '模拟登录失败，无法通过Cloudflare'
+                logger.warn(f"{site} 模拟登录失败，无法绕过Cloudflare检测")
+                return False, '模拟登录失败，无法绕过Cloudflare检测'
+
+            for regex in re_sl:
+                if re.search(regex, html_text):
+                    logger.warn(f"{site} 模拟登录失败，无法绕过雷池检测")
+                    return False, '模拟登录失败，无法绕过雷池检测'
 
             if not SiteUtils.is_logged_in(html_text):
                 logger.warn(f"{site} 模拟登录失败，Cookie已失效")
@@ -1694,9 +1709,9 @@ class AutoSignIn(_PluginBase):
                                proxies=settings.PROXY if proxy else None,
                                timeout=timeout or 20
                                ).get_res(url=url, allow_redirects=False)
-            while req and req.status_code in [301, 302]:
+            while req and req.status_code in [301, 302] and req.headers['Location']:
                 logger.info(f"重定向 {url} -> {req.headers['Location']}")
-                url = req.headers['Location']
+                url = urljoin(url, req.headers['Location'])
                 req = RequestUtils(headers=headers,
                                    proxies=settings.PROXY if proxy else None,
                                    timeout=timeout or 20
@@ -1706,10 +1721,6 @@ class AutoSignIn(_PluginBase):
                 raw_data = req.content
                 if raw_data:
                     try:
-                        # result = chardet.detect(raw_data)
-                        # encoding = result['encoding']
-                        # 解码为字符串
-                        # return raw_data.decode(encoding)
                         return raw_data.decode()
                     except Exception as e:
                         logger.error(f"{url} 页面解码失败：{str(e)}")
