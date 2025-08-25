@@ -18,7 +18,7 @@ class SubscribeClear(_PluginBase):
     # 插件图标
     plugin_icon = "Moviepilot_A.png"
     # 插件版本
-    plugin_version = "1.0.1"
+    plugin_version = "1.0.2"
     # 插件作者
     plugin_author = "k0ala"
     # 作者主页
@@ -79,9 +79,6 @@ class SubscribeClear(_PluginBase):
                 else:
                     # 从下载器删除种子
                     self.delete_download_history(h, history_torrents[h.download_hash])
-                    
-                
-                
 
     def delete_data(self, history: DownloadHistory):
         """
@@ -100,8 +97,6 @@ class SubscribeClear(_PluginBase):
             logger.error(f"删除下载历史记录失败：{str(e)}")
             return False
 
-
-    
     def delete_download_history(self,history: DownloadHistory, torrent: Any):
         downloader_name = history.downloader
         downloader_obj = self.__get_downloader(downloader_name)
@@ -118,8 +113,6 @@ class SubscribeClear(_PluginBase):
         downloader_obj.delete_torrents(delete_file=True,ids=hashs)
         self.delete_data(history)
 
-
-            
     def get_state(self) -> bool:
         return True
 
@@ -164,7 +157,6 @@ class SubscribeClear(_PluginBase):
                 episode_str += f" {history.episodes}"
             episode_options.append({"title": episode_str, "value": history.id})
 
-                
         # 将列表转换为选择框选项格式
         title_options = [{"title": t, "value": t} for t in titles]
 
@@ -244,30 +236,20 @@ class SubscribeClear(_PluginBase):
         return downs
 
     def get_page(self) -> List[dict]:
-        items = []
-        for down in self.get_data():
-            items.append({
-                'component': 'tr',
-                'content': [
-                    {
-                        'component': 'td',
-                        'text': down.id
-                    },
-                    {
-                        'component': 'td',
-                        'text': down.title
-                    },
-                    {
-                        'component': 'td',
-                        'text':down.seasons + " " + down.episodes
-                    },
-                    {
-                        'component': 'td',
-                        'text': down.torrent_name
-                    }
-                ]
-            })
-
+        headers = [
+            {'key': 'id', 'title': 'ID'},
+            {'key': 'title', 'title': '名称'},
+            {'key': 'episode', 'title': '剧集'},
+            {'key': 'torrent_name', 'title': '种子'}
+        ]
+        items = [
+            {
+                'id': data.get("id"),
+                'title': data.get("title"),
+                'episode': f'{data.get("seasons")} {data.get("episode")}',
+                'torrent_name': data.get("torrent_name")
+            } for data in self.get_data()
+        ]
         return [
             {
                 'component': 'VRow',
@@ -279,54 +261,17 @@ class SubscribeClear(_PluginBase):
                         },
                         'content': [
                             {
-                                'component': 'VTable',
+                                'component': 'VDataTableVirtual',
                                 'props': {
+                                    'class': 'text-sm',
+                                    'headers': headers,
+                                    'items': items,
+                                    'height': '30rem',
+                                    'density': 'compact',
+                                    'fixed-header': True,
+                                    'hide-no-data': True,
                                     'hover': True
-                                },
-                                'content': [
-                                    {
-                                        'component': 'thead',
-                                        'content': [
-                                            {
-                                                'component': 'tr',
-                                                'content': [
-                                                    {
-                                                        'component': 'th',
-                                                        'props': {
-                                                            'class': 'text-start ps-4'
-                                                        },
-                                                        'text': 'id'
-                                                    },
-                                                    {
-                                                        'component': 'th',
-                                                        'props': {
-                                                            'class': 'text-start ps-4'
-                                                        },
-                                                        'text': '名称'
-                                                    },
-                                                      {
-                                                        'component': 'th',
-                                                        'props': {
-                                                            'class': 'text-start ps-4'
-                                                        },
-                                                        'text': '剧集'
-                                                    },
-                                                    {
-                                                        'component': 'th',
-                                                        'props': {
-                                                            'class': 'text-start ps-4'
-                                                        },
-                                                        'text': '种子名称'
-                                                    }
-                                                ]
-                                            }
-                                        ]
-                                    },
-                                    {
-                                        'component': 'tbody',
-                                        'content': items
-                                    }
-                                ]
+                                }
                             }
                         ]
                     }
@@ -334,7 +279,6 @@ class SubscribeClear(_PluginBase):
             }
         ]
 
-  
     @staticmethod
     def get_api(self) -> List[Dict[str, Any]]:
         """

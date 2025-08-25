@@ -15,7 +15,7 @@
         "name": "订阅种子清理",
         "description": "删除指定下载信息。",
         "labels": "下载管理",
-        "version": "1.0.1",
+        "version": "1.0.2",
         "icon": "Moviepilot_A.jpg",
         "author": "k0ala",
         "level": 1,
