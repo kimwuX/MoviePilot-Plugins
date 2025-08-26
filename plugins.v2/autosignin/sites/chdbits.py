@@ -31,9 +31,12 @@ class CHDBits(_ISiteSigninHandler):
     # 签到成功
     _success_regex = [r'连续\d+天签到,获得\d+点魔力值']
 
-    # 存储正确的答案，后续可直接查
-    _answer_path = settings.TEMP_PATH / "signin/"
-    _answer_file = _answer_path / "chdbits.json"
+    # 存储答案的文件
+    _answer_file = None
+
+    def __init__(self):
+        self._answer_file = self.get_data_path("chdbits.json")
+        logger.debug(f"答案文件路径：{self._answer_file}")
 
     @classmethod
     def match(cls, url: str) -> bool:
@@ -57,10 +60,6 @@ class CHDBits(_ISiteSigninHandler):
         proxy = site_info.get("proxy")
         render = site_info.get("render")
         timeout = site_info.get("timeout")
-
-        # 创建正确答案存储目录
-        if not os.path.exists(os.path.dirname(self._answer_file)):
-            os.makedirs(os.path.dirname(self._answer_file))
 
         # 判断今日是否已签到
         html_text = self.get_page_source(url=self._sign_in_url,
@@ -92,10 +91,12 @@ class CHDBits(_ISiteSigninHandler):
 
         # 获取页面问题、答案
         questionid = html.xpath("//input[@name='questionid']/@value")[0]
-        # option_ids = html.xpath("//input[@name='choice[]']/@value")
         question_str = html.xpath("//td[@class='text' and contains(text(),'请问：')]/text()")[0]
+        option_ids = html.xpath("//input[@name='choice[]']/@value")
+        option_texts = html.xpath("//input[@name='choice[]']/following-sibling::text()")
 
         logger.debug(f"签到问题：{questionid} - {re.sub(r'\s+', ' ', question_str.strip())}")
+        logger.debug(f"答案选项：{list(zip(option_ids, option_texts))}")
 
         # 查询已有答案
         try:
@@ -116,6 +117,9 @@ class CHDBits(_ISiteSigninHandler):
                                      timeout=timeout)
         except Exception as e:
             logger.debug(f"查询本地已知答案失败：{str(e)}")
+
+        logger.warn(f"编号[{questionid}]问题【{re.sub(r'\s+', ' ', question_str.strip())}】签到失败，"
+                    f"答案选项：{list(zip(option_ids, option_texts))}")
 
         return False, '签到失败，未收录该题答案'
 

@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 import re
 from abc import ABCMeta, abstractmethod
+from pathlib import Path
 from typing import Tuple
 from urllib.parse import urljoin
 
@@ -106,3 +107,15 @@ class _ISiteSigninHandler(metaclass=ABCMeta):
             if re.search(str(regex), html_text):
                 return True
         return False
+
+    @staticmethod
+    def get_data_path(filename: str) -> Path:
+        """
+        获取插件数据保存路径
+        """
+        data_path = settings.PLUGIN_DATA_PATH / "autosignin"
+        if not data_path.exists():
+            data_path.mkdir(parents=True)
+        if filename:
+            data_path = data_path / filename
+        return data_path

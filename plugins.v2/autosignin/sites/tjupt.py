@@ -31,9 +31,12 @@ class Tjupt(_ISiteSigninHandler):
     # 签到成功
     _succeed_regex = [r'本次签到获得\s*<b>\d+<\/b>\s*个魔力值']
 
-    # 存储正确的答案，后续可直接查
-    _answer_path = settings.TEMP_PATH / "signin/"
-    _answer_file = _answer_path / "tjupt.json"
+    # 存储答案的文件
+    _answer_file = None
+
+    def __init__(self):
+        self._answer_file = self.get_data_path("tjupt.json")
+        logger.debug(f"答案文件路径：{self._answer_file}")
 
     @classmethod
     def match(cls, url: str) -> bool:
@@ -57,10 +60,6 @@ class Tjupt(_ISiteSigninHandler):
         proxy = site_info.get("proxy")
         render = site_info.get("render")
         timeout = site_info.get("timeout")
-
-        # 创建正确答案存储目录
-        if not os.path.exists(os.path.dirname(self._answer_file)):
-            os.makedirs(os.path.dirname(self._answer_file))
 
         # 获取北洋签到页面html
         html_text = self.get_page_source(url=self._sign_in_url,
@@ -203,8 +202,8 @@ class Tjupt(_ISiteSigninHandler):
                                              exits_answers=exits_answers,
                                              img_name=img_name)
 
-        logger.warn(f"豆瓣图片匹配，未获取到匹配答案")
-        # 没有匹配签到成功，则签到失败
+        logger.warn(f"海报【{img_name}】签到失败，答案选项：{options}")
+
         return False, '签到失败，未获取到匹配答案'
 
     def __signin(self, value: str,
