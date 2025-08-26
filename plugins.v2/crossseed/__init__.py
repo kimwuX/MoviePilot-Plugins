@@ -180,7 +180,7 @@ class CrossSeed(_PluginBase):
     # 插件图标
     plugin_icon = "qingwa.png"
     # 插件版本
-    plugin_version = "3.0.1.2"
+    plugin_version = "3.0.1.3"
     # 插件作者
     plugin_author = "233@qingwa"
     # 作者主页
@@ -545,11 +545,11 @@ class CrossSeed(_PluginBase):
                                 },
                                 'content': [
                                     {
-                                        'component': 'VTextField',
+                                        'component': 'VCronField',
                                         'props': {
                                             'model': 'cron',
                                             'label': '执行周期',
-                                            'placeholder': '0 0 0 ? *'
+                                            'placeholder': ''
                                         }
                                     }
                                 ]
@@ -973,13 +973,9 @@ class CrossSeed(_PluginBase):
                 # 处理分组
                 chunk_tors, err_msg = self.cross_helper.get_target_torrent(site_config, chunk)
                 if chunk_tors is None:
-                    logger.warning(
-                        f"站点{site_config.name}辅种进度{i + 1}-{i + len(chunk)}，查询失败：{err_msg}"
-                    )
+                    logger.warning(f"站点{site_config.name}辅种进度{i + 1}-{i + len(chunk)}，查询失败：{err_msg}")
                 else:
-                    logger.info(
-                        f"站点{site_config.name}辅种进度{i + 1}-{i + len(chunk)}，可辅种数{len(chunk_tors)}个"
-                    )
+                    # logger.info(f"站点{site_config.name}辅种进度{i + 1}-{i + len(chunk)}，可辅种数{len(chunk_tors)}个")
                     remote_tors = remote_tors + chunk_tors
                 cnt += 1
                 if cnt % 5 == 0:
@@ -1105,24 +1101,22 @@ class CrossSeed(_PluginBase):
             proxy=True if site_config.proxy else False)
 
         # 兼容种子无法访问的情况
-        if not content or (isinstance(content, bytes) and "你没有该权限".encode(encoding="utf-8") in content):
+        if not content or err_msg:
             # 下载失败
             self.fail += 1
             self.cached += 1
             # 加入失败缓存
-            if error_msg and ('无法打开链接' in error_msg or '触发站点流控' in error_msg):
-                fail_cache.append(tor.torrent_id)
-            else:
-                # 种子不存在的情况
+            if error_msg and re.search(r"状态码：404|磁力链接", error_msg):
                 error_cache.append(tor.torrent_id)
-            logger.error(f"下载种子文件失败：{tor.get_name_id_tag()}")
+            else:
+                fail_cache.append(tor.torrent_id)
+            logger.warning(f"种子文件 {tor.get_name_id_tag()} 下载失败：{error_msg}")
             return False
 
         # 添加任务前查询校验一次，避免重复添加，导致暂停的任务被重新开始
-        downloader_obj = service.instance
         tmp_tor_info, err_msg = TorInfo.from_data(content)
         if tmp_tor_info and tmp_tor_info.info_hash:
-            tors, msg = downloader_obj.get_torrents(ids=[tmp_tor_info.info_hash])
+            tors, msg = service.instance.get_torrents(ids=[tmp_tor_info.info_hash])
             if tors:
                 self.exist += 1
                 logger.warning(f"下载的种子 {tor.get_name_id_tag()} 已存在, 跳过")
@@ -1143,19 +1137,18 @@ class CrossSeed(_PluginBase):
             self.cached += 1
             # 加入失败缓存
             fail_cache.append(tor.torrent_id)
+            logger.warning(f"下载任务 {tor.get_name_id_tag()} 添加失败")
             return False
         else:
             self.success += 1
-            logger.info(f"添加校验检查任务：{download_id} ...")
+            # 加入成功缓存
+            success_cache.append(tor.torrent_id)
+            self.__add_recheck_torrents(service, download_id)
             if service.type == "qbittorrent":
-                downloader_obj.recheck_torrents(ids=[download_id])
-                self.__add_recheck_torrents(service, download_id)
-            else:
-                self.__add_recheck_torrents(service, download_id)
+                # qb 需要手动重新检验
+                service.instance.recheck_torrents(ids=[download_id])
             # 下载成功
             logger.info(f"成功添加辅种下载，站点种子：{tor.get_name_id_tag()}")
-            # 成功也加入缓存，有一些改了路径校验不通过的，手动删除后，下一次又会辅上
-            success_cache.append(tor.torrent_id)
             return True
 
     def __add_recheck_torrents(self, service: ServiceInfo, download_id: str):
