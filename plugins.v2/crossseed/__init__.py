@@ -180,7 +180,7 @@ class CrossSeed(_PluginBase):
     # 插件图标
     plugin_icon = "qingwa.png"
     # 插件版本
-    plugin_version = "3.0.1.3"
+    plugin_version = "3.0.1.4"
     # 插件作者
     plugin_author = "233@qingwa"
     # 作者主页
@@ -962,6 +962,7 @@ class CrossSeed(_PluginBase):
             if db_site and not db_site.is_active:
                 logger.info(f"站点{site_config.name}已停用，跳过辅种")
                 continue
+            logger.info(f"正在查询站点{site_config.name}种子，请稍候...")
             remote_tors: List[TorInfo] = []
             cnt = 0
             for i in range(0, len(pieces_hashes), chunk_size):
@@ -1087,11 +1088,14 @@ class CrossSeed(_PluginBase):
         下载种子
 
         """
+        logger.info(f"正在下载种子：{tor.get_name_id_tag()}")
+
         self.total += 1
         self.realtotal += 1
 
         # 下载种子
         torrent_url = site_config.get_torrent_url(tor.torrent_id)
+        logger.debug(f"种子下载链接：{torrent_url}")
 
         # 下载种子文件
         _, content, _, _, error_msg = TorrentHelper().download_torrent(
@@ -1101,7 +1105,7 @@ class CrossSeed(_PluginBase):
             proxy=True if site_config.proxy else False)
 
         # 兼容种子无法访问的情况
-        if not content or err_msg:
+        if not content or error_msg:
             # 下载失败
             self.fail += 1
             self.cached += 1
