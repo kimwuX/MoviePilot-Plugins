@@ -11,16 +11,16 @@
             "v1.0": "种子Tracker管理插件"
         }
     },
-    "SubscribeClear": {
-        "name": "订阅种子清理",
-        "description": "删除指定下载信息。",
-        "labels": "下载管理",
-        "version": "1.0.2",
-        "icon": "Moviepilot_A.jpg",
-        "author": "k0ala",
+    "DownloadHistoryCleaner": {
+        "name": "下载历史记录清理",
+        "description": "删除下载历史记录及下载文件记录，可选删除种子及文件",
+        "labels": "下载,清理",
+        "version": "1.0",
+        "icon": "clean.png",
+        "author": "kim.wu",
         "level": 1,
         "history": {
-            "v1.0": "支持清理QB中已下载的订阅文件"
+            "v1.0": "下载历史记录清理插件"
         }
     },
     "AutoSignIn": {
