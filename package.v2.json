@@ -1,7 +1,7 @@
 {
     "TrackerManager": {
         "name": "种子Tracker管理",
-        "description": "按照规则自动替换、删除、增加种子tracker",
+        "description": "按照规则自动替换、删除、增加种子tracker。",
         "labels": "种子管理",
         "version": "1.0",
         "icon": "https://raw.githubusercontent.com/kimwuX/MoviePilot-Plugins/main/icons/Torrent_B.png",
@@ -13,7 +13,7 @@
     },
     "DownloadHistoryCleaner": {
         "name": "下载历史记录清理",
-        "description": "删除下载历史记录及下载文件记录，可选删除种子及文件",
+        "description": "删除下载历史记录及下载文件记录，可选删除种子及文件。",
         "labels": "下载,清理",
         "version": "1.0",
         "icon": "clean.png",

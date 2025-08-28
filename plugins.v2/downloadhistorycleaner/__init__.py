@@ -15,7 +15,7 @@ class DownloadHistoryCleaner(_PluginBase):
     # 插件名称
     plugin_name = "下载历史记录清理"
     # 插件描述
-    plugin_desc = "删除下载历史记录及下载文件记录，可选删除种子及文件"
+    plugin_desc = "删除下载历史记录及下载文件记录，可选删除种子及文件。"
     # 插件图标
     plugin_icon = "clean.png"
     # 插件版本
