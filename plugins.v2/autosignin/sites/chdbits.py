@@ -85,7 +85,6 @@ class CHDBits(_ISiteSigninHandler):
 
         # 没有签到则解析html
         html = etree.HTML(html_text)
-
         if not html:
             return False, '签到失败'
 
@@ -95,8 +94,8 @@ class CHDBits(_ISiteSigninHandler):
         option_ids = html.xpath("//input[@name='choice[]']/@value")
         option_texts = html.xpath("//input[@name='choice[]']/following-sibling::text()")
 
-        logger.debug(f"签到问题：{questionid} - {re.sub(r'\s+', ' ', question_str.strip())}")
-        logger.debug(f"答案选项：{list(zip(option_ids, option_texts))}")
+        logger.debug(f"{site} 签到问题：{questionid} - {re.sub(r'\s+', ' ', question_str.strip())}")
+        logger.debug(f"{site} 答案选项：{list(zip(option_ids, option_texts))}")
 
         # 查询已有答案
         try:
@@ -104,7 +103,7 @@ class CHDBits(_ISiteSigninHandler):
                 json_str = f.read()
             exits_answers = json.loads(json_str)
             choice = exits_answers.get(questionid)
-            logger.debug(f"本地答案：{choice}")
+            logger.debug(f"{site} 本地答案：{choice}")
 
             # 本地存在答案
             if choice:
@@ -116,9 +115,9 @@ class CHDBits(_ISiteSigninHandler):
                                      proxy=proxy,
                                      timeout=timeout)
         except Exception as e:
-            logger.debug(f"查询本地已知答案失败：{str(e)}")
+            logger.debug(f"{site} 查询本地已知答案失败：{str(e)}")
 
-        logger.warn(f"编号[{questionid}]问题【{re.sub(r'\s+', ' ', question_str.strip())}】签到失败，"
+        logger.warn(f"{site} 编号[{questionid}]问题【{re.sub(r'\s+', ' ', question_str.strip())}】签到失败，"
                     f"答案选项：{list(zip(option_ids, option_texts))}")
 
         return False, '签到失败，未收录该题答案'
@@ -145,7 +144,7 @@ class CHDBits(_ISiteSigninHandler):
             'usercomment': '马马虎虎~',
             'submit': '提交'
         }
-        logger.debug(f"签到请求参数 {data}")
+        logger.debug(f"{site} 签到请求参数 {data}")
 
         sign_res = RequestUtils(cookies=site_cookie,
                                 ua=ua,

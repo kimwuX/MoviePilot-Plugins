@@ -96,7 +96,7 @@ class Opencd(_ISiteSigninHandler):
         # 识别几次
         while times <= 3:
             if times > 0:
-                logger.warn(f"ocr识别{site}验证码失败，正在进行重试，目前重试次数 {times}")
+                logger.warn(f"OCR识别 {site} 验证码失败，正在进行重试，目前重试次数：{times}")
             # ocr二维码识别
             ocr_result = OcrHelper().get_captcha_text(image_url=img_get_url,
                                                       cookie=site_cookie,

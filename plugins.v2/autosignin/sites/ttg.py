@@ -71,7 +71,7 @@ class TTG(_ISiteSigninHandler):
         # 获取签到参数
         signed_timestamp = re.search('(?<=signed_timestamp: ")\\d{10}', html_text).group()
         signed_token = re.search('(?<=signed_token: ").*(?=")', html_text).group()
-        logger.debug(f"signed_timestamp={signed_timestamp} signed_token={signed_token}")
+        logger.debug(f"{site} signed_timestamp={signed_timestamp} signed_token={signed_token}")
 
         data = {
             'signed_timestamp': signed_timestamp,

@@ -37,7 +37,7 @@ class AutoSignIn(_PluginBase):
     # 插件图标
     plugin_icon = "signin.png"
     # 插件版本
-    plugin_version = "2.7.0.6"
+    plugin_version = "2.7.0.7"
     # 插件作者
     plugin_author = "thsrite"
     # 作者主页
@@ -513,6 +513,17 @@ class AutoSignIn(_PluginBase):
         if custom_sites_config and custom_sites_config.get("enabled"):
             custom_sites = custom_sites_config.get("sites")
         return custom_sites
+
+    def __get_plugin_data(self, pkey, ckey):
+        res = self.get_data(pkey)
+        return res.get(ckey) if res else None
+
+    def __set_plugin_data(self, pkey, ckey, value):
+        res = self.get_data(pkey)
+        if res is None:
+            res = {}
+        res[ckey] = value
+        self.save_data(pkey, res)
 
     def get_page(self) -> List[dict]:
         """

@@ -23,7 +23,7 @@ class TrackerManager(_PluginBase):
     # 插件名称
     plugin_name = "种子Tracker管理"
     # 插件描述
-    plugin_desc = "按照规则自动替换替换、删除、增加种子tracker。"
+    plugin_desc = "可替换、删除、增加种子tracker。"
     # 插件图标
     plugin_icon = "https://raw.githubusercontent.com/kimwuX/MoviePilot-Plugins/main/icons/Torrent_B.png"
     # 插件版本
