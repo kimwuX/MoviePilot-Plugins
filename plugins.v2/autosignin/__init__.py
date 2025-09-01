@@ -1,6 +1,6 @@
 import re
 import traceback
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 from multiprocessing.dummy import Pool as ThreadPool
 from multiprocessing.pool import ThreadPool
 from typing import Any, List, Dict, Tuple, Optional
@@ -37,7 +37,7 @@ class AutoSignIn(_PluginBase):
     # 插件图标
     plugin_icon = "signin.png"
     # 插件版本
-    plugin_version = "2.7.0.7"
+    plugin_version = "2.7.0.8"
     # 插件作者
     plugin_author = "thsrite"
     # 作者主页
@@ -525,6 +525,58 @@ class AutoSignIn(_PluginBase):
         res[ckey] = value
         self.save_data(pkey, res)
 
+    def __clean_history_data(self, type_str: str, days: int):
+        today = datetime.now().date()
+        delta = timedelta(days=days)
+        re_record = r"(\d+)月(\d+)日"
+        re_site = r"(\d+)-(\d+)-(\d+)"
+
+        # 删除 record 数据
+        record = self.get_data("record") or {}
+        logger.debug(f"record处理前：{record}")
+        keys = list(record.keys())
+        for key in keys:
+            res = re.search(re_record, key)
+            if not res:
+                continue
+            temp = date(year=today.year, month=int(res.group(1)), day=int(res.group(2)))
+            if temp > today:
+                temp = date(year=today.year - 1, month=int(res.group(1)), day=int(res.group(2)))
+            if today - temp < delta:
+                continue
+            items = record.get(key) or []
+            tokeep = []
+            while len(items) > 0:
+                item = items.pop(0)
+                if item.get("status") and type_str in item.get("status"):
+                    continue
+                tokeep.append(item)
+            if len(tokeep) > 0:
+                record[key] = tokeep
+            else:
+                logger.debug(f"删除 {key} 数据")
+                del record[key]
+        logger.debug(f"record处理后：{record}")
+        self.save_data("record", record)
+
+        # 删除 site 数据
+        site = self.get_data("site") or {}
+        logger.debug(f"site处理前：{site}")
+        keys = list(site.keys())
+        for key in keys:
+            if type_str not in key:
+                continue
+            res = re.search(re_site, key)
+            if not res:
+                continue
+            temp = date(year=int(res.group(1)), month=int(res.group(2)), day=int(res.group(3)))
+            if today - temp < delta:
+                continue
+            logger.debug(f"删除 {key} 数据")
+            del site[key]
+        logger.debug(f"site处理后：{site}")
+        self.save_data("site", site)
+
     def get_page(self) -> List[dict]:
         """
         拼装插件详情页面，需要返回页面配置，同时附带数据
@@ -557,7 +609,7 @@ class AutoSignIn(_PluginBase):
             day_formatted = day.strftime('%Y-%m-%d')
 
             # 获取"月日"格式数据
-            day_data = self.get_data(day_str)
+            day_data = self.__get_plugin_data(pkey="record", ckey=day_str)
             if day_data:
                 # 添加日期信息到每条记录
                 if isinstance(day_data, list):
@@ -573,7 +625,7 @@ class AutoSignIn(_PluginBase):
                     sign_dates.add(day_str)
 
             # 获取"签到-yyyy-mm-dd"和"登录-yyyy-mm-dd"格式数据
-            signin_history = self.get_data(key="签到-" + day_formatted)
+            signin_history = self.__get_plugin_data(pkey="site", ckey=f"签到-{day_formatted}")
             if signin_history:
                 if isinstance(signin_history, dict):
                     # 获取完成签到的站点ID列表
@@ -610,7 +662,7 @@ class AutoSignIn(_PluginBase):
                     sign_dates.add(day_str)
 
             # 获取登录历史数据
-            login_history = self.get_data(key="登录-" + day_formatted)
+            login_history = self.__get_plugin_data(pkey="site", ckey=f"登录-{day_formatted}")
             if login_history:
                 if isinstance(login_history, dict):
                     # 获取完成登录的站点ID列表
@@ -1278,6 +1330,12 @@ class AutoSignIn(_PluginBase):
                               title="开始站点签到 ...",
                               userid=event.event_data.get("user"))
 
+        # 删除旧数据
+        for row in self.get_data():
+            if row and row.key not in ["record", "site"]:
+                logger.debug(f"删除：{row.key}")
+                self.del_data(row.key)
+
         if self._sign_sites:
             self.__do(today=today, type_str="签到", do_sites=self._sign_sites, event=event)
         if self._login_sites:
@@ -1287,15 +1345,12 @@ class AutoSignIn(_PluginBase):
         """
         签到逻辑
         """
-        last_day = today - timedelta(days=4)
-        last_day_str = last_day.strftime('%Y-%m-%d')
-        # 删除昨天历史
-        self.del_data(key=type_str + "-" + last_day_str)
-        self.del_data(key=f"{last_day.month}月{last_day.day}日")
+        # 删除历史记录
+        self.__clean_history_data(type_str=type_str, days=3)
 
         # 查看今天有没有签到|登录历史
         today = today.strftime('%Y-%m-%d')
-        today_history = self.get_data(key=type_str + "-" + today)
+        today_history = self.__get_plugin_data(pkey="site", ckey=f"{type_str}-{today}")
 
         # 查询所有站点
         all_sites = [site for site in self.sites.get_indexers() if not site.get("public")] + self.__custom_sites()
@@ -1346,7 +1401,7 @@ class AutoSignIn(_PluginBase):
             logger.info(f"站点{type_str}任务完成！")
             # 获取今天的日期
             key = f"{datetime.now().month}月{datetime.now().day}日"
-            today_data = self.get_data(key)
+            today_data = self.__get_plugin_data(pkey="record", ckey=key)
             if today_data:
                 if not isinstance(today_data, list):
                     today_data = [today_data]
@@ -1361,7 +1416,7 @@ class AutoSignIn(_PluginBase):
                     "status": s[1]
                 } for s in status]
             # 保存数据
-            self.save_data(key, today_data)
+            self.__set_plugin_data(pkey="record", ckey=key, value=today_data)
 
             # 命中重试词的站点id
             retry_sites = []
@@ -1422,11 +1477,11 @@ class AutoSignIn(_PluginBase):
             logger.debug(f"下次{type_str}重试站点 {retry_sites}")
 
             # 存入历史
-            self.save_data(key=type_str + "-" + today,
-                           value={
-                               "do": self._sign_sites if type_str == "签到" else self._login_sites,
-                               "retry": retry_sites
-                           })
+            self.__set_plugin_data(pkey="site", ckey=f"{type_str}-{today}",
+                                   value={
+                                       "do": self._sign_sites if type_str == "签到" else self._login_sites,
+                                       "retry": retry_sites
+                                   })
 
             # 自动Cloudflare IP优选
             if self._auto_cf and int(self._auto_cf) > 0 and retry_msg and len(retry_msg) >= int(self._auto_cf):
