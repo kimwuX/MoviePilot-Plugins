@@ -1,5 +1,4 @@
 import json
-import os
 import re
 from typing import Tuple
 
@@ -16,8 +15,6 @@ from app.utils.string import StringUtils
 class CHDBits(_ISiteSigninHandler):
     """
     彩虹岛签到
-    如果填写openai key则调用chatgpt获取答案
-    否则随机
     """
     # 匹配的站点Url，每一个实现类都需要设置为自己的站点Url
     site_url = "ptchdbits.co"
@@ -137,12 +134,14 @@ class CHDBits(_ISiteSigninHandler):
         usercomment: 此刻心情:无
         submit: 提交
         多选会有多个choice[]....
+        选不会又回答正确有加成
         """
         data = {
             'questionid': questionid,
             'choice[]': choice[0] if len(choice) == 1 else choice,
-            'usercomment': '马马虎虎~',
-            'submit': '提交'
+            'usercomment': '不会啊~',
+            # 'submit': '提交'
+            'wantskip': '不会'
         }
         logger.debug(f"{site} 签到请求参数 {data}")
 
