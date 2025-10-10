@@ -37,7 +37,7 @@ class AutoSignIn(_PluginBase):
     # 插件图标
     plugin_icon = "signin.png"
     # 插件版本
-    plugin_version = "2.7.0.9"
+    plugin_version = "2.7.0.10"
     # 插件作者
     plugin_author = "thsrite"
     # 作者主页
@@ -97,8 +97,8 @@ class AutoSignIn(_PluginBase):
             self._clean = config.get("clean")
 
             # 过滤掉已删除的站点
-            all_sites = [site.id for site in self.siteoper.list_order_by_pri()] + [site.get("id") for site in
-                                                                                   self.__custom_sites()]
+            all_sites = [site.id for site in self.siteoper.list_order_by_pri()] + \
+                [site.get("id") for site in self.__custom_sites()]
             self._sign_sites = [site_id for site_id in all_sites if site_id in self._sign_sites]
             self._login_sites = [site_id for site_id in all_sites if site_id in self._login_sites]
             # 保存配置
@@ -593,10 +593,8 @@ class AutoSignIn(_PluginBase):
         sites_info = {}  # 记录站点信息
 
         # 获取站点信息
-        site_indexers = self.sites.get_indexers()
-        for site in site_indexers:
-            if not site.get("public"):
-                sites_info[site.get("id")] = site.get("name")
+        for site in self.siteoper.list_order_by_pri():
+            sites_info[site.id] = site.name
 
         # 自定义站点
         custom_sites = self.__custom_sites()
@@ -1595,6 +1593,9 @@ class AutoSignIn(_PluginBase):
         # safeline firewall
         re_sl = [r'slg-title', r'slg-box', r'sl-box']
 
+        # other chanllenges
+        re_ch = [r'dragContainer', r'dragBg', r'dragText', r'dragHandler']
+
         # 已签到
         # 您今天已经签到过了，请勿重复刷新。
         re_signed = [r'您今天已经签到过了，请勿重复刷新']
@@ -1631,6 +1632,11 @@ class AutoSignIn(_PluginBase):
                     logger.warn(f"{site} 签到失败，无法绕过雷池检测")
                     return False, '签到失败，无法绕过雷池检测'
 
+            for regex in re_ch:
+                if re.search(regex, html_text):
+                    logger.warn(f"{site} 签到失败，无法通过验证")
+                    return False, '签到失败，无法通过验证'
+
             if not SiteUtils.is_logged_in(html_text):
                 logger.warn(f"{site} 签到失败，Cookie已失效")
                 return False, '签到失败，Cookie已失效'
@@ -1639,6 +1645,10 @@ class AutoSignIn(_PluginBase):
                 if re.search(regex, html_text):
                     logger.warn(f"{site} 签到失败，签到页面已被Cloudflare防护")
                     return False, '签到失败，签到页面已被Cloudflare防护'
+
+            if "take2fa.php" in html_text:
+                logger.warn(f"{site} 签到失败，两步验证拦截")
+                return False, '签到失败，两步验证拦截'
 
             # 已签到
             for regex in re_signed:

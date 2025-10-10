@@ -26,7 +26,8 @@ class CHDBits(_ISiteSigninHandler):
     _sign_regex = ['今天已经签过到了']
 
     # 签到成功
-    _success_regex = [r'连续\d+天签到,获得\d+点魔力值']
+    # 连续23天签到,获得441+5点魔力值
+    _success_regex = [r'连续\d+天签到,获得[\d\+]+点魔力值']
 
     # 存储答案的文件
     _answer_file = None
