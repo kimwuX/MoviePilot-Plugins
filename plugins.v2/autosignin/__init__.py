@@ -37,7 +37,7 @@ class AutoSignIn(_PluginBase):
     # 插件图标
     plugin_icon = "signin.png"
     # 插件版本
-    plugin_version = "2.7.0.10"
+    plugin_version = "2.7.0.11"
     # 插件作者
     plugin_author = "thsrite"
     # 作者主页
@@ -622,6 +622,7 @@ class AutoSignIn(_PluginBase):
                                 all_data["signin"].append(record)
                     sign_dates.add(day_str)
 
+            """
             # 获取"签到-yyyy-mm-dd"和"登录-yyyy-mm-dd"格式数据
             signin_history = self.__get_plugin_data(pkey="site", ckey=f"签到-{day_formatted}")
             if signin_history:
@@ -675,7 +676,7 @@ class AutoSignIn(_PluginBase):
                         # 跳过需要重试的站点
                         if site_id in retry_sites:
                             # 为需要重试的站点添加记录
-                            status_text = "登录需要重试"
+                            status_text = "需要重试"
                             all_data["login"].append({
                                 "site": site_name,
                                 "status": status_text,
@@ -695,6 +696,7 @@ class AutoSignIn(_PluginBase):
                             })
 
                     sign_dates.add(day_str)
+            """
 
         # 如果没有数据，显示提示信息
         if not all_data["signin"] and not all_data["login"]:
