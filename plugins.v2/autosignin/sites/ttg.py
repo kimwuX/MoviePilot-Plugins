@@ -95,5 +95,5 @@ class TTG(_ISiteSigninHandler):
             logger.info(f"{site} 今日已签到")
             return True, '今日已签到'
 
-        logger.warn(f"{site} 签到失败，未知原因")
-        return False, '签到失败，未知原因'
+        logger.warn(f"{site} 签到失败，接口返回：\n{sign_res.text}")
+        return False, '签到失败，请查看日志'

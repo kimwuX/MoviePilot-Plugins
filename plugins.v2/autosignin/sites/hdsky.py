@@ -121,23 +121,27 @@ class HDSky(_ISiteSigninHandler):
                     'imagestring': ocr_result
                 }
                 # 访问签到链接
-                res = RequestUtils(cookies=site_cookie,
+                sign_res = RequestUtils(cookies=site_cookie,
                                    ua=ua,
                                    referer=referer,
                                    proxies=settings.PROXY if proxy else None
                                    ).post_res(url='https://hdsky.me/showup.php', data=data)
-                if res and res.status_code == 200:
-                    if json.loads(res.text)["success"]:
+                if sign_res and sign_res.status_code == 200:
+                    sign_dict = json.loads(sign_res.text)
+                    if sign_dict["success"]:
                         logger.info(f"{site} 签到成功")
                         return True, '签到成功'
-                    elif str(json.loads(res.text)["message"]) == "date_unmatch":
+                    elif str(sign_dict["message"]) == "date_unmatch":
                         # 重复签到
                         logger.warn(f"{site} 重复成功")
                         return True, '今日已签到'
-                    elif str(json.loads(res.text)["message"]) == "invalid_imagehash":
+                    elif str(sign_dict["message"]) == "invalid_imagehash":
                         # 验证码错误
-                        logger.warn(f"{site} 签到失败：验证码错误")
-                        return False, '签到失败：验证码错误'
+                        logger.warn(f"{site} 签到失败，验证码错误")
+                        return False, '签到失败，验证码错误'
+                    else:
+                        logger.warn(f"{site} 签到失败，接口返回：\n{sign_res.text}")
+                        return False, '签到失败，请查看日志'
 
-        logger.warn(f'{site} 签到失败：未获取到验证码')
-        return False, '签到失败：未获取到验证码'
+        logger.warn(f'{site} 签到失败，未获取到验证码')
+        return False, '签到失败，未获取到验证码'

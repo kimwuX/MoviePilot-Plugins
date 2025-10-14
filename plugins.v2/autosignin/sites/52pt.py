@@ -83,7 +83,7 @@ class Pt52(_ISiteSigninHandler):
         # 没有签到则解析html
         html = etree.HTML(html_text)
         if not html:
-            return False, '签到失败'
+            return False, f'签到失败，无法解析：\n{html_text}'
 
         # 获取页面问题、答案
         questionid = html.xpath("//input[@name='questionid']/@value")[0]
@@ -143,7 +143,7 @@ class Pt52(_ISiteSigninHandler):
             # 'submit': '提交'
             'wantskip': '不会'
         }
-        logger.debug(f"{site} 签到请求参数 {data}")
+        logger.debug(f"{site} 签到请求参数：{data}")
 
         sign_res = RequestUtils(cookies=site_cookie,
                                 ua=ua,
@@ -167,5 +167,5 @@ class Pt52(_ISiteSigninHandler):
                 logger.info(f"{site} 今日已签到")
                 return True, '今日已签到'
 
-            logger.warn(f"{site} 签到失败，请到页面查看")
-            return False, '签到失败，请到页面查看'
+        logger.warn(f"{site} 签到失败，接口返回：\n{sign_res.text}")
+        return False, '签到失败，请查看日志'

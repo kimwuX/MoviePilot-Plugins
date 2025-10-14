@@ -223,18 +223,18 @@ class Tjupt(_ISiteSigninHandler):
             'ban_robot': value,
             'submit': '提交'
         }
-        logger.debug(f"{site} 提交答案 {data}")
-        sign_in_res = RequestUtils(cookies=site_cookie,
+        logger.debug(f"{site} 签到请求参数：{data}")
+        sign_res = RequestUtils(cookies=site_cookie,
                                    ua=ua,
                                    proxies=settings.PROXY if proxy else None,
                                    timeout=timeout
                                    ).post_res(url=self._sign_in_url, data=data)
-        if not sign_in_res or sign_in_res.status_code != 200:
+        if not sign_res or sign_res.status_code != 200:
             logger.warn(f"{site} 签到失败，签到接口请求失败")
             return False, '签到失败，签到接口请求失败'
 
         # 获取签到后返回html，判断是否签到成功
-        sign_status = self.sign_in_result(html_res=sign_in_res.text,
+        sign_status = self.sign_in_result(html_res=sign_res.text,
                                           regexs=self._succeed_regex)
         if sign_status:
             if exits_answers is not None and img_name is not None:
@@ -244,9 +244,9 @@ class Tjupt(_ISiteSigninHandler):
                                           answer=answer)
             logger.info(f"{site} 签到成功")
             return True, '签到成功'
-        else:
-            logger.warn(f"{site} 签到失败，请到页面查看")
-            return False, '签到失败，请到页面查看'
+
+        logger.warn(f"{site} 签到失败，接口返回：\n{sign_res.text}")
+        return False, '签到失败，请查看日志'
 
     def __write_local_answer(self, exits_answers, img_name, answer):
         """

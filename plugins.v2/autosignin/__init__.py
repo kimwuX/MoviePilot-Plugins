@@ -37,7 +37,7 @@ class AutoSignIn(_PluginBase):
     # 插件图标
     plugin_icon = "signin.png"
     # 插件版本
-    plugin_version = "2.7.0.11"
+    plugin_version = "2.7.0.12"
     # 插件作者
     plugin_author = "thsrite"
     # 作者主页
@@ -1664,12 +1664,12 @@ class AutoSignIn(_PluginBase):
                     logger.info(f"{site} 签到成功")
                     return True, '签到成功'
 
-            logger.warn(f"{site} 签到失败，接口返回 {html_text}")
-            return False, '签到失败'
+            logger.warn(f"{site} 签到失败，接口返回：\n{html_text}")
+            return False, '签到失败，请查看日志'
         except Exception as e:
             traceback.print_exc()
-            logger.warn(f"{site} 签到失败：{str(e)}")
-            return False, '签到失败'
+            logger.warn(f"{site} 签到失败，错误信息：\n{str(e)}")
+            return False, '签到失败，未知错误'
 
     def login_site(self, site_info: CommentedMap) -> Tuple[str, str]:
         """
@@ -1749,8 +1749,8 @@ class AutoSignIn(_PluginBase):
             return True, '模拟登录成功'
         except Exception as e:
             traceback.print_exc()
-            logger.warn(f"{site} 模拟登录失败：{str(e)}")
-            return False, '模拟登录失败'
+            logger.warn(f"{site} 模拟登录失败，错误信息：\n{str(e)}")
+            return False, '模拟登录失败，未知错误'
 
     @staticmethod
     def get_page_source(url: str, cookie: str, ua: str, proxy: bool, render: bool,

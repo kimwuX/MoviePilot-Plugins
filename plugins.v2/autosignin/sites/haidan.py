@@ -61,5 +61,5 @@ class HaiDan(_ISiteSigninHandler):
             logger.info(f"{site} 签到成功")
             return True, '签到成功'
 
-        logger.warn(f"{site} 签到失败，签到接口返回 {html_text}")
-        return False, '签到失败'
+        logger.warn(f"{site} 签到失败，接口返回：\n{html_text}")
+        return False, '签到失败，请查看日志'

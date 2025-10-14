@@ -68,5 +68,6 @@ class NexusHD(_ISiteSigninHandler):
         if self._repeat_text in html_res.text:
             logger.info(f"{site} 今日已签到")
             return True, '今日已签到'
-        logger.warn(f"{site} 签到失败，签到接口返回 {html_res.text}")
-        return False, '签到失败'
+
+        logger.warn(f"{site} 签到失败，接口返回：\n{html_res.text}")
+        return False, '签到失败，请查看日志'

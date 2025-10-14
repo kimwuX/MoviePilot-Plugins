@@ -121,15 +121,14 @@ class Opencd(_ISiteSigninHandler):
                                     proxies=settings.PROXY if proxy else None
                                     ).post_res(url='https://www.open.cd/plugin_sign-in.php?cmd=signin', data=data)
             if sign_res and sign_res.status_code == 200:
-                logger.debug(f"sign_res返回 {sign_res.text}")
                 # sign_res.text = '{"state":"success","signindays":"0","integral":"10"}'
                 sign_dict = json.loads(sign_res.text)
                 if sign_dict['state']:
                     logger.info(f"{site} 签到成功")
                     return True, '签到成功'
                 else:
-                    logger.warn(f"{site} 签到失败，签到接口返回 {sign_dict}")
-                    return False, '签到失败'
+                    logger.warn(f"{site} 签到失败，接口返回：\n{sign_res.text}")
+                    return False, '签到失败，请查看日志'
 
-        logger.warn(f'{site} 签到失败：未获取到验证码')
-        return False, '签到失败：未获取到验证码'
+        logger.warn(f'{site} 签到失败，未获取到验证码')
+        return False, '签到失败，未获取到验证码'

@@ -13,12 +13,12 @@ class HDArea(_ISiteSigninHandler):
     """
     好大签到
     """
-
     # 匹配的站点Url，每一个实现类都需要设置为自己的站点Url
     site_url = "hdarea.club"
 
-    # 签到成功
+    # 已连续签到278天，此次签到您获得了100魔力值奖励!
     _success_text = "此次签到您获得"
+    # 请不要重复签到哦！
     _repeat_text = "请不要重复签到哦"
 
     @classmethod
@@ -60,12 +60,12 @@ class HDArea(_ISiteSigninHandler):
             return False, '签到失败，Cookie已失效'
 
         # 判断是否已签到
-        # '已连续签到278天，此次签到您获得了100魔力值奖励!'
         if self._success_text in html_res.text:
             logger.info(f"{site} 签到成功")
             return True, '签到成功'
         if self._repeat_text in html_res.text:
             logger.info(f"{site} 今日已签到")
             return True, '今日已签到'
-        logger.warn(f"{site} 签到失败，签到接口返回 {html_res.text}")
-        return False, '签到失败'
+
+        logger.warn(f"{site} 签到失败，接口返回：\n{html_res.text}")
+        return False, '签到失败，请查看日志'
