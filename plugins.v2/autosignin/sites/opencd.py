@@ -77,7 +77,7 @@ class Opencd(_ISiteSigninHandler):
         # 没有签到则解析html
         html = etree.HTML(html_text)
         if not html:
-            return False, '签到失败'
+            return False, f'签到失败，无法解析：\n{html_text}'
 
         # 签到参数
         img_url = html.xpath('//form[@id="frmSignin"]//img/@src')[0]
@@ -88,7 +88,7 @@ class Opencd(_ISiteSigninHandler):
 
         # 完整验证码url
         img_get_url = 'https://www.open.cd/%s' % img_url
-        logger.debug(f"{site} 获取到{site}验证码链接 {img_get_url}")
+        logger.debug(f"{site} 验证码链接：{img_get_url}")
 
         # ocr识别多次，获取6位验证码
         times = 0
@@ -96,39 +96,43 @@ class Opencd(_ISiteSigninHandler):
         # 识别几次
         while times <= 3:
             if times > 0:
-                logger.warn(f"OCR识别 {site} 验证码失败，正在进行重试，目前重试次数：{times}")
+                logger.warn(f"{site} 验证码识别失败，正在进行第{times}次重试")
             # ocr二维码识别
             ocr_result = OcrHelper().get_captcha_text(image_url=img_get_url,
                                                       cookie=site_cookie,
                                                       ua=ua)
             if ocr_result:
                 if len(ocr_result) == 6:
-                    logger.info(f"OCR识别 {site} 验证码成功：{ocr_result}")
+                    logger.info(f"{site} 验证码识别成功：{ocr_result}")
                     break
-                logger.warn(f"OCR识别 {site} 验证码有误：{ocr_result}")
+                logger.warn(f"{site} 验证码识别错误：{ocr_result}")
             times += 1
             time.sleep(1)
 
-        if ocr_result:
-            # 组装请求参数
-            data = {
-                'imagehash': img_hash,
-                'imagestring': ocr_result
-            }
-            # 访问签到链接
-            sign_res = RequestUtils(cookies=site_cookie,
-                                    ua=ua,
-                                    proxies=settings.PROXY if proxy else None
-                                    ).post_res(url='https://www.open.cd/plugin_sign-in.php?cmd=signin', data=data)
-            if sign_res and sign_res.status_code == 200:
-                # sign_res.text = '{"state":"success","signindays":"0","integral":"10"}'
-                sign_dict = json.loads(sign_res.text)
-                if sign_dict['state']:
-                    logger.info(f"{site} 签到成功")
-                    return True, '签到成功'
-                else:
-                    logger.warn(f"{site} 签到失败，接口返回：\n{sign_res.text}")
-                    return False, '签到失败，请查看日志'
+        if not ocr_result or len(ocr_result) != 6:
+            logger.warn(f'{site} 签到失败，验证码识别失败')
+            return False, '签到失败，验证码识别失败'
 
-        logger.warn(f'{site} 签到失败，未获取到验证码')
-        return False, '签到失败，未获取到验证码'
+        # 组装请求参数
+        data = {
+            'imagehash': img_hash,
+            'imagestring': ocr_result
+        }
+        logger.debug(f"{site} 签到请求参数：{data}")
+        sign_res = RequestUtils(cookies=site_cookie,
+                                ua=ua,
+                                proxies=settings.PROXY if proxy else None
+                                ).post_res(url='https://www.open.cd/plugin_sign-in.php?cmd=signin',
+                                           data=data)
+        if not sign_res or sign_res.status_code != 200:
+            logger.warn(f"{site} 签到失败，签到接口请求失败")
+            return False, '签到失败，签到接口请求失败'
+
+        # sign_res.text = '{"state":"success","signindays":"0","integral":"10"}'
+        sign_dict = json.loads(sign_res.text)
+        if sign_dict['state']:
+            logger.info(f"{site} 签到成功")
+            return True, '签到成功'
+        else:
+            logger.warn(f"{site} 签到失败，接口返回：\n{sign_res.text}")
+            return False, '签到失败，请查看日志'

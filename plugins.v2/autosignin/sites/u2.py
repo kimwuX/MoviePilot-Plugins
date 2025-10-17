@@ -83,9 +83,8 @@ class U2(_ISiteSigninHandler):
 
         # 没有签到则解析html
         html = etree.HTML(html_text)
-
         if not html:
-            return False, '签到失败'
+            return False, f'签到失败，无法解析：\n{html_text}'
 
         # 获取签到参数
         req = html.xpath("//form//td/input[@name='req']/@value")[0]
