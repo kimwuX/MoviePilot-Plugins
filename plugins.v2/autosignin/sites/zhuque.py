@@ -48,11 +48,11 @@ class ZhuQue(_ISiteSigninHandler):
                                          render=render,
                                          timeout=timeout)
         if not html_text:
-            logger.warn(f"{site} 模拟登录失败，请检查站点连通性")
+            logger.warning(f"{site} 模拟登录失败，请检查站点连通性")
             return False, '模拟登录失败，请检查站点连通性'
 
         if "login.php" in html_text:
-            logger.warn(f"{site} 模拟登录失败，Cookie已失效")
+            logger.warning(f"{site} 模拟登录失败，Cookie已失效")
             return False, '模拟登录失败，Cookie已失效'
 
         html = etree.HTML(html_text)
@@ -79,7 +79,7 @@ class ZhuQue(_ISiteSigninHandler):
                                      timeout=timeout
                                      ).post_res(url="https://zhuque.in/api/gaming/fireGenshinCharacterMagic", json=data)
             if not skill_res or skill_res.status_code != 200:
-                logger.warn(f"模拟登录失败，释放技能失败")
+                logger.warning(f"模拟登录失败，释放技能失败")
 
             # '{"status":200,"data":{"code":"FIRE_GENSHIN_CHARACTER_MAGIC_SUCCESS","bonus":0}}'
             skill_dict = json.loads(skill_res.text)

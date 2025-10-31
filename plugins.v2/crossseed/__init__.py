@@ -180,7 +180,7 @@ class CrossSeed(_PluginBase):
     # 插件图标
     plugin_icon = "qingwa.png"
     # 插件版本
-    plugin_version = "3.0.1.5"
+    plugin_version = "3.0.1.6"
     # 插件作者
     plugin_author = "233@qingwa"
     # 作者主页
@@ -200,23 +200,26 @@ class CrossSeed(_PluginBase):
     siteoper: SiteOper = None
     # 开关
     _enabled = False
-    _cron = None
+    _notify = False
     _onlyonce = False
-    _token = None
+    _clearcache = False
+    _cron = None
     _downloaders = []
     _sites = []
+    _token = None
     _torrentpath = None
-    _notify = False
-    _nolabels = None
     _nopaths = None
-    _clearcache = False
+    _addlabels = None
+    _nolabels = None
     # 退出事件
     _event = Event()
-    _torrent_tags = ["已整理", "辅种"]
     # 待校全种子hash清单
     _recheck_torrents = {}
     _is_recheck_running = False
-    _torrentpaths = []
+    _torrentpath_list = []
+    _nopaths_list = []
+    _addlabels_list = []
+    _nolabels_list = []
     _site_cs_infos = []
     # 辅种计数
     total = 0
@@ -233,25 +236,32 @@ class CrossSeed(_PluginBase):
         # 读取配置
         if config:
             self._enabled = config.get("enabled")
-            self._onlyonce = config.get("onlyonce")
-            self._cron = config.get("cron")
-            self._token = config.get("token")  # passkey格式  青蛙:xxxxxx,站点名称:xxxxxxx
-
-            self._downloaders = config.get("downloaders")
-            self._torrentpath = config.get("torrentpath")  # 种子路径和下载器对应  /qb,/tr
-            self._torrentpaths = self._torrentpath.strip().split(",")
-            self._sites = config.get("sites") or []
             self._notify = config.get("notify")
-            self._nolabels = config.get("nolabels")
-            self._nopaths = config.get("nopaths")
+            self._onlyonce = config.get("onlyonce")
             self._clearcache = config.get("clearcache")
+            self._cron = config.get("cron")
+            self._downloaders = config.get("downloaders")
+            self._sites = config.get("sites") or []
+            self._token = config.get("token")  # passkey格式  青蛙:xxxxxx,站点名称:xxxxxxx
+            self._torrentpath = config.get("torrentpath")  # 种子路径和下载器对应  /qb,/tr
+            self._nopaths = config.get("nopaths")
+            self._addlabels = config.get("addlabels")
+            self._nolabels = config.get("nolabels")
+
+            self._torrentpath_list = self._torrentpath.strip().split("\n") if \
+                self.__is_string_not_empty(self._torrentpath) else self._torrentpath_list
+            self._nopaths_list = self._nopaths.strip().split("\n") if \
+                self.__is_string_not_empty(self._nopaths) else self._nopaths_list
+            self._addlabels_list = self._addlabels.strip().split(",") if \
+                self.__is_string_not_empty(self._addlabels) else self._addlabels_list
+            self._nolabels_list = self._nolabels.strip().split(",") if \
+                self.__is_string_not_empty(self._nolabels) else self._nolabels_list
 
             # 过滤掉已删除的站点
             all_sites = [site.id for site in self.siteoper.list_order_by_pri()] + \
                 [site.get("id") for site in self.__custom_sites()]
             self._sites = [site_id for site_id in all_sites if site_id in self._sites]
-            site_indexers = [site
-                             for site in (self.siteshelper.get_indexers() + self.__custom_sites())
+            site_indexers = [site for site in (self.siteshelper.get_indexers() + self.__custom_sites())
                              if site.get("id") in self._sites]
 
             # 整理所有可用内部站点信息
@@ -279,7 +289,7 @@ class CrossSeed(_PluginBase):
                     if str.isdigit(site_key_arr[2]):
                         site_name_gap_map[site_name] = int(site_key_arr[2])
                     else:
-                        logger.warn(
+                        logger.warning(
                             f"站点{site_name}配置的查询请求间隔时间不为整数，不能生效, 请修改 {site_key_arr[2]}"
                         )
 
@@ -324,7 +334,7 @@ class CrossSeed(_PluginBase):
 
                 if self._scheduler.get_jobs():
                     # 追加种子校验服务
-                    self._scheduler.add_job(self.check_recheck, 'interval', minutes=3)
+                    # self._scheduler.add_job(self.check_recheck, 'interval', minutes=3)
                     # 启动服务
                     self._scheduler.print_jobs()
                     self._scheduler.start()
@@ -408,7 +418,7 @@ class CrossSeed(_PluginBase):
                     })
                 return ret_jobs
         elif self._enabled:
-            logger.warn("青蛙辅种助手插件参数不全，定时任务未正常启动")
+            logger.warning("青蛙辅种助手插件参数不全，定时任务未正常启动")
         return []
 
     def get_form(self) -> Tuple[List[dict], Dict[str, Any]]:
@@ -437,7 +447,7 @@ class CrossSeed(_PluginBase):
                                 'component': 'VCol',
                                 'props': {
                                     'cols': 12,
-                                    'md': 4
+                                    'md': 3
                                 },
                                 'content': [
                                     {
@@ -453,7 +463,7 @@ class CrossSeed(_PluginBase):
                                 'component': 'VCol',
                                 'props': {
                                     'cols': 12,
-                                    'md': 4
+                                    'md': 3
                                 },
                                 'content': [
                                     {
@@ -469,7 +479,7 @@ class CrossSeed(_PluginBase):
                                 'component': 'VCol',
                                 'props': {
                                     'cols': 12,
-                                    'md': 4
+                                    'md': 3
                                 },
                                 'content': [
                                     {
@@ -477,6 +487,22 @@ class CrossSeed(_PluginBase):
                                         'props': {
                                             'model': 'onlyonce',
                                             'label': '立即运行一次',
+                                        }
+                                    }
+                                ]
+                            },
+                            {
+                                'component': 'VCol',
+                                'props': {
+                                    'cols': 12,
+                                    'md': 3
+                                },
+                                'content': [
+                                    {
+                                        'component': 'VSwitch',
+                                        'props': {
+                                            'model': 'clearcache',
+                                            'label': '清理缓存',
                                         }
                                     }
                                 ]
@@ -490,18 +516,40 @@ class CrossSeed(_PluginBase):
                                 'component': 'VCol',
                                 'props': {
                                     'cols': 12,
-                                    'md': 4
+                                    'md': 6
                                 },
                                 'content': [
                                     {
-                                        'component': 'VSwitch',
+                                        'component': 'VCronField',
                                         'props': {
-                                            'model': 'clearcache',
-                                            'label': '清除缓存后运行',
+                                            'model': 'cron',
+                                            'label': '执行周期',
+                                            'placeholder': ''
+                                        }
+                                    }
+                                ]
+                            },
+                            {
+                                'component': 'VCol',
+                                'props': {
+                                    'cols': 12,
+                                    'md': 6
+                                },
+                                'content': [
+                                    {
+                                        'component': 'VSelect',
+                                        'props': {
+                                            'chips': True,
+                                            'multiple': True,
+                                            'model': 'downloaders',
+                                            'label': '辅种下载器',
+                                            'items': [{"title": config.name, "value": config.name}
+                                                      for config in DownloaderHelper().get_configs().values()]
                                         }
                                     }
                                 ]
                             }
+
                         ]
                     },
                     {
@@ -557,59 +605,16 @@ class CrossSeed(_PluginBase):
                             {
                                 'component': 'VCol',
                                 'props': {
-                                    'cols': 12,
-                                    'md': 6
+                                    'cols': 12
                                 },
                                 'content': [
                                     {
-                                        'component': 'VSelect',
-                                        'props': {
-                                            'chips': True,
-                                            'multiple': True,
-                                            'model': 'downloaders',
-                                            'label': '辅种下载器',
-                                            'items': [{"title": config.name, "value": config.name}
-                                                      for config in DownloaderHelper().get_configs().values()]
-                                        }
-                                    }
-                                ]
-                            },
-                            {
-                                'component': 'VCol',
-                                'props': {
-                                    'cols': 12,
-                                    'md': 6
-                                },
-                                'content': [
-                                    {
-                                        'component': 'VCronField',
-                                        'props': {
-                                            'model': 'cron',
-                                            'label': '执行周期',
-                                            'placeholder': ''
-                                        }
-                                    }
-                                ]
-                            },
-
-                        ]
-                    },
-                    {
-                        'component': 'VRow',
-                        'content': [
-                            {
-                                'component': 'VCol',
-                                'props': {
-                                    'cols': 12,
-                                    'md': 12
-                                },
-                                'content': [
-                                    {
-                                        'component': 'VTextField',
+                                        'component': 'VTextarea',
                                         'props': {
                                             'model': 'torrentpath',
                                             'label': '种子文件目录',
-                                            'placeholder': '多个目录逗号分隔，按下载器顺序对应填写，每个下载器只能有一个种子目录'
+                                            'rows': 2,
+                                            'placeholder': '每行一个目录，按下载器顺序对应填写，每个下载器只能有一个种子目录'
                                         }
                                     }
                                 ]
@@ -626,10 +631,33 @@ class CrossSeed(_PluginBase):
                                 },
                                 'content': [
                                     {
+                                        'component': 'VTextarea',
+                                        'props': {
+                                            'model': 'nopaths',
+                                            'label': '排除辅种文件目录',
+                                            'rows': 2,
+                                            'placeholder': '每行一个目录'
+                                        }
+                                    }
+                                ]
+                            }
+                        ]
+                    },
+                    {
+                        'component': 'VRow',
+                        'content': [
+                            {
+                                'component': 'VCol',
+                                'props': {
+                                    'cols': 12,
+                                    'md': 6
+                                },
+                                'content': [
+                                    {
                                         'component': 'VTextField',
                                         'props': {
-                                            'model': 'nolabels',
-                                            'label': '不辅种标签',
+                                            'model': 'addlabels',
+                                            'label': '添加种子标签',
                                             'placeholder': '使用,分隔多个标签'
                                         }
                                     }
@@ -638,16 +666,16 @@ class CrossSeed(_PluginBase):
                             {
                                 'component': 'VCol',
                                 'props': {
-                                    'cols': 12
+                                    'cols': 12,
+                                    'md': 6
                                 },
                                 'content': [
                                     {
-                                        'component': 'VTextarea',
+                                        'component': 'VTextField',
                                         'props': {
-                                            'model': 'nopaths',
-                                            'label': '不辅种数据文件目录',
-                                            'rows': 3,
-                                            'placeholder': '每一行一个目录'
+                                            'model': 'nolabels',
+                                            'label': '排除种子标签',
+                                            'placeholder': '使用,分隔多个标签'
                                         }
                                     }
                                 ]
@@ -705,15 +733,16 @@ class CrossSeed(_PluginBase):
             }
         ], {
             "enabled": False,
-            "onlyonce": False,
             "notify": False,
+            "onlyonce": False,
             "clearcache": False,
             "cron": "",
-            "token": "",
             "downloaders": [],
-            "torrentpath": "",
             "sites": [],
+            "token": "",
+            "torrentpath": "",
             "nopaths": "",
+            "addlabels": "辅种助手",
             "nolabels": ""
         }
 
@@ -723,26 +752,36 @@ class CrossSeed(_PluginBase):
     def __update_config(self):
         self.update_config({
             "enabled": self._enabled,
+            "notify": self._notify,
             "onlyonce": self._onlyonce,
             "clearcache": self._clearcache,
             "cron": self._cron,
-            "token": self._token,
             "downloaders": self._downloaders,
-            "torrentpath": self._torrentpath,
             "sites": self._sites,
-            "notify": self._notify,
-            "nolabels": self._nolabels,
-            "nopaths": self._nopaths
+            "token": self._token,
+            "torrentpath": self._torrentpath,
+            "nopaths": self._nopaths,
+            "addlabels": self._addlabels,
+            "nolabels": self._nolabels
         })
 
     def auto_seed(self):
         """
         开始辅种
         """
+        logger.info("开始辅种任务 ...")
+
         if not self.service_infos:
+            logger.warning("辅种结束")
             return
 
-        logger.info("开始辅种任务 ...")
+        if len(self._site_cs_infos) == 0:
+            logger.warning("未配置辅种站点，辅种结束")
+            return
+
+        if len(self._torrentpath_list) < len(self.service_infos):
+            logger.error("种子文件目录配置有误，辅种结束")
+            return
 
         # 计数器初始化
         self.total = 0
@@ -772,13 +811,13 @@ class CrossSeed(_PluginBase):
                 hash_str = self.__get_hash(torrent, service.type)
                 save_path = self.__get_save_path(torrent, service.type)
                 # 获取种子文件路径
-                torrent_path = Path(self._torrentpaths[idx]) / f"{hash_str}.torrent"
+                torrent_path = Path(self._torrentpath_list[idx]) / f"{hash_str}.torrent"
                 torrent_info = None
                 if not torrent_path.exists():
                     if False and service.type == "qbittorrent":
                         # qb开启SQLite功能后将不再以hash命名的方式保存torrent文件
                         # TODO 导出功能需要qb4.5.0以上版本才支持
-                        logger.warn(f"QB种子文件不存在：{torrent_path} 尝试远程导出种子")
+                        logger.warning(f"QB种子文件不存在：{torrent_path} 尝试远程导出种子")
                         try:
                             torrent_data = torrent.export()
                             torrent_info, err = TorInfo.from_data(torrent_data)
@@ -810,7 +849,7 @@ class CrossSeed(_PluginBase):
                             if "https" in torrent_info.torrent_announce:
                                 tracker_urls.add(torrent_info.torrent_announce)
                 except Exception as err:
-                    logger.warn(f"尝试获取 {downloader} 的tracker出错 {err}")
+                    logger.warning(f"尝试获取 {downloader} 的tracker出错 {err}")
                 # 根据tracker补充站点信息
                 for tracker in tracker_urls:
                     # 优先通过passkey获取站点名
@@ -825,10 +864,10 @@ class CrossSeed(_PluginBase):
                         if site_info:
                             torrent_info.site_name = site_info.get("name")
 
-                if self._nopaths and save_path:
+                if self._nopaths_list and save_path:
                     # 过滤不需要转移的路径
                     nopath_skip = False
-                    for nopath in self._nopaths.split('\n'):
+                    for nopath in self._nopaths_list:
                         if os.path.normpath(save_path).startswith(os.path.normpath(nopath)):
                             logger.info(f"种子 {hash_str} 保存路径 {save_path} 不需要辅种，跳过 ...")
                             nopath_skip = True
@@ -838,9 +877,9 @@ class CrossSeed(_PluginBase):
 
                 # 获取种子标签
                 torrent_labels = self.__get_label(torrent, service.type)
-                if torrent_labels and self._nolabels:
+                if torrent_labels and self._nolabels_list:
                     is_skip = False
-                    for label in self._nolabels.split(','):
+                    for label in self._nolabels_list:
                         if label in torrent_labels:
                             logger.info(f"种子 {hash_str} 含有不辅种标签 {label}，跳过 ...")
                             is_skip = True
@@ -976,7 +1015,7 @@ class CrossSeed(_PluginBase):
                 if chunk_tors is None:
                     logger.warning(f"站点{site_config.name}辅种进度{i + 1}-{i + len(chunk)}，查询失败：{err_msg}")
                 else:
-                    # logger.info(f"站点{site_config.name}辅种进度{i + 1}-{i + len(chunk)}，可辅种数{len(chunk_tors)}个")
+                    logger.info(f"站点{site_config.name}辅种进度{i + 1}-{i + len(chunk)}，可辅种数{len(chunk_tors)}个")
                     remote_tors = remote_tors + chunk_tors
                 cnt += 1
                 if cnt % 5 == 0:
@@ -1037,35 +1076,35 @@ class CrossSeed(_PluginBase):
 
         logger.info(f"下载器 {service.name} 辅种完成")
 
-    @staticmethod
-    def __download(service: ServiceInfo, content: Union[bytes, str],
+    def __download(self, service: ServiceInfo, content: Union[bytes, str],
                    save_path: str) -> Optional[str]:
         """
         添加下载任务
         """
         if service.type == "qbittorrent":
             # 生成随机Tag
-            tag = StringUtils.generate_random_str(10)
-
+            rand_tag = [StringUtils.generate_random_str(10)]
+            tag = self._addlabels_list + rand_tag if self._addlabels_list else rand_tag
             state = service.instance.add_torrent(content=content,
                                                  download_dir=save_path,
                                                  is_paused=True,
-                                                 tag=["已整理", "辅种", tag])
+                                                 tag=tag)
             if not state:
                 return None
             else:
                 # 获取种子Hash
-                torrent_hash = service.instance.get_torrent_id_by_tag(tags=tag)
+                torrent_hash = service.instance.get_torrent_id_by_tag(tags=rand_tag)
                 if not torrent_hash:
                     logger.error(f"{service.name} 下载任务添加成功，但获取任务信息失败！")
                     return None
             return torrent_hash
         elif service.type == "transmission":
             # 添加任务
+            labels = self._addlabels_list.copy() if self._addlabels_list else None
             torrent = service.instance.add_torrent(content=content,
                                                    download_dir=save_path,
                                                    is_paused=True,
-                                                   labels=["已整理", "辅种"])
+                                                   labels=labels)
             if not torrent:
                 return None
             else:
@@ -1128,7 +1167,7 @@ class CrossSeed(_PluginBase):
             elif msg:
                 logger.warning(f"从下载器获取种子 {tor.get_name_id_tag()} 失败：{err_msg}")
         else:
-            logger.warn(f"种子文件 {tor.get_name_id_tag()} 解析失败：{err_msg}")
+            logger.warning(f"种子文件 {tor.get_name_id_tag()} 解析失败：{err_msg}")
 
         # 添加下载，辅种任务默认暂停
         logger.info(f"添加下载任务：{tor.get_name_id_tag()} ...")
@@ -1250,6 +1289,10 @@ class CrossSeed(_PluginBase):
         except Exception as e:
             print(str(e))
             return ""
+
+    @staticmethod
+    def __is_string_not_empty(value: str):
+        return True if value and not value.isspace() else False
 
     def stop_service(self):
         """

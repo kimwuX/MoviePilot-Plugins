@@ -45,17 +45,17 @@ class PTerClub(_ISiteSigninHandler):
                                          render=render,
                                          timeout=timeout)
         if not html_text:
-            logger.warn(f"{site} 签到失败，请检查站点连通性")
+            logger.warning(f"{site} 签到失败，请检查站点连通性")
             return False, '签到失败，请检查站点连通性'
 
         if "login.php" in html_text:
-            logger.warn(f"{site} 签到失败，Cookie已失效")
+            logger.warning(f"{site} 签到失败，Cookie已失效")
             return False, '签到失败，Cookie已失效'
 
         try:
             sign_dict = json.loads(html_text)
         except Exception as e:
-            logger.warn(f"{site} 签到失败，错误信息：\n{str(e)}")
+            logger.warning(f"{site} 签到失败，错误信息：\n{str(e)}")
             return False, '签到失败，未知错误'
 
         if sign_dict['status'] == '1':

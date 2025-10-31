@@ -50,15 +50,15 @@ class BTSchool(_ISiteSigninHandler):
                                          timeout=timeout)
 
         if not html_text:
-            logger.warn(f"{site} 签到失败，请检查站点连通性")
+            logger.warning(f"{site} 签到失败，请检查站点连通性")
             return False, '签到失败，请检查站点连通性'
 
         if under_challenge(html_text):
-            logger.warn(f"{site} 签到失败，无法绕过Cloudflare检测")
+            logger.warning(f"{site} 签到失败，无法绕过Cloudflare检测")
             return False, '签到失败，无法绕过Cloudflare检测'
 
         if "login.php" in html_text:
-            logger.warn(f"{site} 签到失败，Cookie已失效")
+            logger.warning(f"{site} 签到失败，Cookie已失效")
             return False, '签到失败，Cookie已失效'
 
         # 已签到
@@ -74,11 +74,11 @@ class BTSchool(_ISiteSigninHandler):
                                          timeout=timeout)
 
         if not html_text:
-            logger.warn(f"{site} 签到失败，签到接口请求失败")
+            logger.warning(f"{site} 签到失败，签到接口请求失败")
             return False, '签到失败，签到接口请求失败'
 
         if under_challenge(html_text):
-            logger.warn(f"{site} 签到失败，无法绕过Cloudflare检测")
+            logger.warning(f"{site} 签到失败，无法绕过Cloudflare检测")
             return False, '签到失败，无法绕过Cloudflare检测'
 
         # 签到成功

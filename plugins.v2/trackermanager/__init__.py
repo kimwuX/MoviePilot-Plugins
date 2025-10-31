@@ -174,7 +174,7 @@ class TrackerManager(_PluginBase):
                 # qbittorrent.qbc.torrents_reannounce(torrent.get("hash"))
             return True
         except Exception as err:
-            logger.warn(f"tracker 更新异常："
+            logger.warning(f"tracker 更新异常："
                         f"hash = {torrent.hash}, name = {torrent.name}, err = {str(err)}")
             return False
 
@@ -211,15 +211,15 @@ class TrackerManager(_PluginBase):
             logger.info(f"下载器[{service_info.name}] - 任务执行开始...")
 
             if self.__exit_event.is_set():
-                logger.warn("插件服务正在退出，任务终止")
+                logger.warning("插件服务正在退出，任务终止")
                 return
 
             torrents, error = self.__get_qbittorrent_torrents(qbittorrent=service_info.instance)
             if error:
-                logger.warn(f"下载器[{service_info.name}] - 获取种子失败，任务终止")
+                logger.warning(f"下载器[{service_info.name}] - 获取种子失败，任务终止")
                 return
             if not torrents or len(torrents) <= 0:
-                logger.warn(f"下载器[{service_info.name}] - 没有种子，任务终止")
+                logger.warning(f"下载器[{service_info.name}] - 没有种子，任务终止")
                 return
 
             count = 0
@@ -262,7 +262,7 @@ class TrackerManager(_PluginBase):
                 transmission.trc.reannounce_torrent(ids=torrent.hashString)
             return True
         except Exception as err:
-            logger.warn(f"tracker 更新异常："
+            logger.warning(f"tracker 更新异常："
                         f"hash = {torrent.hashString}, name = {torrent.name}, err = {str(err)}")
             return False
 
@@ -300,15 +300,15 @@ class TrackerManager(_PluginBase):
             logger.info(f"下载器[{service_info.name}] - 任务执行开始...")
 
             if self.__exit_event.is_set():
-                logger.warn("插件服务正在退出，任务终止")
+                logger.warning("插件服务正在退出，任务终止")
                 return
 
             torrents, error = self.__get_transmission_torrents(transmission=service_info.instance)
             if error:
-                logger.warn(f"下载器[{service_info.name}] - 获取种子失败，任务终止")
+                logger.warning(f"下载器[{service_info.name}] - 获取种子失败，任务终止")
                 return
             if not torrents or len(torrents) <= 0:
-                logger.warn(f"下载器[{service_info.name}] - 没有种子，任务终止")
+                logger.warning(f"下载器[{service_info.name}] - 没有种子，任务终止")
                 return
 
             count = 0
@@ -325,23 +325,23 @@ class TrackerManager(_PluginBase):
 
     def __get_downloader_serviceInfos(self) -> Optional[List[ServiceInfo]]:
         if not self._downloaders:
-            logger.warn("尚未配置下载器，请检查配置")
+            logger.warning("尚未配置下载器，请检查配置")
             return None
 
         services = self.__downloader_helper.get_services(name_filters=self._downloaders)
         if not services:
-            logger.warn("获取下载器实例失败，请检查配置")
+            logger.warning("获取下载器实例失败，请检查配置")
             return None
 
         active_services = []
         for service_name, service_info in services.items():
             if service_info.instance.is_inactive():
-                logger.warn(f"下载器[{service_name}] - 未连接，请检查配置")
+                logger.warning(f"下载器[{service_name}] - 未连接，请检查配置")
             else:
                 active_services.append(service_info)
 
         if len(active_services) == 0:
-            logger.warn("没有已连接的下载器，请检查配置")
+            logger.warning("没有已连接的下载器，请检查配置")
             return None
 
         return active_services
@@ -356,18 +356,18 @@ class TrackerManager(_PluginBase):
             parts = line.split("|")
             count = len(parts)
             if count < 2:
-                logger.warn(f"规则配置有误：{line}")
+                logger.warning(f"规则配置有误：{line}")
                 continue
             op = parts[0].strip().lower()
             key = parts[1].strip()
             if not op or not key:
-                logger.warn(f"规则配置有误：{line}")
+                logger.warning(f"规则配置有误：{line}")
                 continue
 
             rules = self._dic_rules.get(key, [])
             if op == self.RULE_ADD:
                 if count < 3 or not parts[2].strip():
-                    logger.warn(f"规则配置有误：{line}")
+                    logger.warning(f"规则配置有误：{line}")
                 else:
                     rules.append(parts)
                     self._dic_rules[key] = rules
@@ -376,17 +376,17 @@ class TrackerManager(_PluginBase):
                 self._dic_rules[key] = rules
             elif op == self.RULE_UPDATE:
                 if count < 3 or not parts[2].strip():
-                    logger.warn(f"规则配置有误：{line}")
+                    logger.warning(f"规则配置有误：{line}")
                 else:
                     rules.append(parts)
                     self._dic_rules[key] = rules
             else:
-                logger.warn(f"规则配置有误：{line}")
+                logger.warning(f"规则配置有误：{line}")
 
 
     def __run_now(self):
         if self.__exit_event.is_set():
-            logger.warn("插件服务正在退出，任务终止")
+            logger.warning("插件服务正在退出，任务终止")
             return
 
         service_infos = self.__get_downloader_serviceInfos()
@@ -395,7 +395,7 @@ class TrackerManager(_PluginBase):
 
         self.__parse_rules()
         if len(self._dic_rules) == 0:
-            logger.warn("没有有效的规则，请检查配置")
+            logger.warning("没有有效的规则，请检查配置")
             return
 
         for service_info in service_infos:
@@ -410,7 +410,7 @@ class TrackerManager(_PluginBase):
         尝试运行插件任务
         """
         if not self.__task_lock.acquire(blocking=False):
-            logger.warn("已有进行中的任务，本次不执行")
+            logger.warning("已有进行中的任务，本次不执行")
             return
         try:
             self.__run_now()

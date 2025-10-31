@@ -56,7 +56,7 @@ class U2(_ISiteSigninHandler):
         now = datetime.datetime.now()
         # 判断当前时间是否小于9点
         if now.hour < 9:
-            logger.warn(f"{site} 签到失败，9点前不签到")
+            logger.warning(f"{site} 签到失败，9点前不签到")
             return False, '签到失败，9点前不签到'
         
         # 获取页面html
@@ -67,11 +67,11 @@ class U2(_ISiteSigninHandler):
                                          render=render,
                                          timeout=timeout)
         if not html_text:
-            logger.warn(f"{site} 签到失败，请检查站点连通性")
+            logger.warning(f"{site} 签到失败，请检查站点连通性")
             return False, '签到失败，请检查站点连通性'
 
         if "login.php" in html_text:
-            logger.warn(f"{site} 签到失败，Cookie已失效")
+            logger.warning(f"{site} 签到失败，Cookie已失效")
             return False, '签到失败，Cookie已失效'
         
         # 判断是否已签到
@@ -93,7 +93,7 @@ class U2(_ISiteSigninHandler):
         submit_name = html.xpath("//form//td/input[@type='submit']/@name")
         submit_value = html.xpath("//form//td/input[@type='submit']/@value")
         if not re or not hash_str or not form or not submit_name or not submit_value:
-            logger.warn(f"{site} 签到失败，未获取到相关签到参数")
+            logger.warning(f"{site} 签到失败，未获取到相关签到参数")
             return False, '签到失败'
 
         # 随机一个答案
@@ -113,7 +113,7 @@ class U2(_ISiteSigninHandler):
                                 ).post_res(url="https://u2.dmhy.org/showup.php?action=show",
                                            data=data)
         if not sign_res or sign_res.status_code != 200:
-            logger.warn(f"{site} 签到失败，签到接口请求失败")
+            logger.warning(f"{site} 签到失败，签到接口请求失败")
             return False, '签到失败，签到接口请求失败'
 
         # 判断是否签到成功
@@ -122,5 +122,5 @@ class U2(_ISiteSigninHandler):
             logger.info(f"{site} 签到成功")
             return True, '签到成功'
 
-        logger.warn(f"{site} 签到失败，接口返回：\n{sign_res.text}")
+        logger.warning(f"{site} 签到失败，接口返回：\n{sign_res.text}")
         return False, '签到失败，请查看日志'

@@ -68,11 +68,11 @@ class CHDBits(_ISiteSigninHandler):
                                          timeout=timeout)
 
         if not html_text:
-            logger.warn(f"{site} 签到失败，请检查站点连通性")
+            logger.warning(f"{site} 签到失败，请检查站点连通性")
             return False, '签到失败，请检查站点连通性'
 
         if "login.php" in html_text:
-            logger.warn(f"{site} 签到失败，Cookie已失效")
+            logger.warning(f"{site} 签到失败，Cookie已失效")
             return False, '签到失败，Cookie已失效'
 
         sign_status = self.sign_in_result(html_res=html_text,
@@ -115,7 +115,7 @@ class CHDBits(_ISiteSigninHandler):
         except Exception as e:
             logger.debug(f"{site} 查询本地已知答案失败：{str(e)}")
 
-        logger.warn(f"{site} 编号[{questionid}]问题【{re.sub(r'\s+', ' ', question_str.strip())}】签到失败，"
+        logger.warning(f"{site} 编号[{questionid}]问题【{re.sub(r'\s+', ' ', question_str.strip())}】签到失败，"
                     f"答案选项：{list(zip(option_ids, option_texts))}")
 
         return False, '签到失败，未收录该题答案'
@@ -152,7 +152,7 @@ class CHDBits(_ISiteSigninHandler):
                                 timeout=timeout
                                 ).post_res(url=self._sign_in_url, data=data)
         if not sign_res or sign_res.status_code != 200:
-            logger.warn(f"{site} 签到失败，签到接口请求失败")
+            logger.warning(f"{site} 签到失败，签到接口请求失败")
             return False, '签到失败，签到接口请求失败'
 
         # 判断是否签到成功
@@ -168,5 +168,5 @@ class CHDBits(_ISiteSigninHandler):
                 logger.info(f"{site} 今日已签到")
                 return True, '今日已签到'
 
-        logger.warn(f"{site} 签到失败，接口返回：\n{sign_res.text}")
+        logger.warning(f"{site} 签到失败，接口返回：\n{sign_res.text}")
         return False, '签到失败，请查看日志'

@@ -53,11 +53,11 @@ class HDSky(_ISiteSigninHandler):
                                          render=render,
                                          timeout=timeout)
         if not html_text:
-            logger.warn(f"{site} 签到失败，请检查站点连通性")
+            logger.warning(f"{site} 签到失败，请检查站点连通性")
             return False, '签到失败，请检查站点连通性'
 
         if "login.php" in html_text:
-            logger.warn(f"{site} 签到失败，Cookie已失效")
+            logger.warning(f"{site} 签到失败，Cookie已失效")
             return False, '签到失败，Cookie已失效'
 
         sign_status = self.sign_in_result(html_res=html_text,
@@ -71,7 +71,7 @@ class HDSky(_ISiteSigninHandler):
         img_hash = None
         while res_times <= 3:
             if res_times > 0:
-                logger.warn(f"{site} 验证码图片获取失败，正在进行第{res_times}次重试")
+                logger.warning(f"{site} 验证码图片获取失败，正在进行第{res_times}次重试")
             image_res = RequestUtils(cookies=site_cookie,
                                      ua=ua,
                                      content_type='application/x-www-form-urlencoded; charset=UTF-8',
@@ -90,7 +90,7 @@ class HDSky(_ISiteSigninHandler):
                 time.sleep(1)
 
         if not img_hash:
-            logger.warn(f"{site} 签到失败，获取签到参数失败")
+            logger.warning(f"{site} 签到失败，获取签到参数失败")
             return False, '签到失败，获取签到参数失败'
 
         # 完整验证码url
@@ -103,7 +103,7 @@ class HDSky(_ISiteSigninHandler):
         # 识别几次
         while times <= 3:
             if times > 0:
-                logger.warn(f"{site} 验证码识别失败，正在进行第{times}次重试")
+                logger.warning(f"{site} 验证码识别失败，正在进行第{times}次重试")
             # ocr二维码识别
             ocr_result = OcrHelper().get_captcha_text(image_url=img_get_url,
                                                       cookie=site_cookie,
@@ -112,12 +112,12 @@ class HDSky(_ISiteSigninHandler):
                 if len(ocr_result) == 6:
                     logger.info(f"{site} 验证码识别成功：{ocr_result}")
                     break
-                logger.warn(f"{site} 验证码识别错误：{ocr_result}")
+                logger.warning(f"{site} 验证码识别错误：{ocr_result}")
             times += 1
             time.sleep(1)
 
         if not ocr_result or len(ocr_result) != 6:
-            logger.warn(f'{site} 签到失败，验证码识别失败')
+            logger.warning(f'{site} 签到失败，验证码识别失败')
             return False, '签到失败，验证码识别失败'
 
         # 组装请求参数
@@ -133,7 +133,7 @@ class HDSky(_ISiteSigninHandler):
                                 proxies=settings.PROXY if proxy else None
                                 ).post_res(url='https://hdsky.me/showup.php', data=data)
         if not sign_res or sign_res.status_code != 200:
-            logger.warn(f"{site} 签到失败，签到接口请求失败")
+            logger.warning(f"{site} 签到失败，签到接口请求失败")
             return False, '签到失败，签到接口请求失败'
 
         sign_dict = json.loads(sign_res.text)
@@ -142,13 +142,13 @@ class HDSky(_ISiteSigninHandler):
             return True, '签到成功'
         elif str(sign_dict["message"]) == "date_unmatch":
             # 重复签到
-            logger.warn(f"{site} 重复签到")
+            logger.warning(f"{site} 重复签到")
             return True, '今日已签到'
         elif str(sign_dict["message"]) == "invalid_imagehash":
             # 验证码错误
-            logger.warn(f"{site} 签到失败，验证码错误")
+            logger.warning(f"{site} 签到失败，验证码错误")
             return False, '签到失败，验证码错误'
         else:
-            logger.warn(f"{site} 签到失败，接口返回：\n{sign_res.text}")
+            logger.warning(f"{site} 签到失败，接口返回：\n{sign_res.text}")
             return False, '签到失败，请查看日志'
 

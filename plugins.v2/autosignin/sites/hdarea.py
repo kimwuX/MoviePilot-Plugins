@@ -52,11 +52,11 @@ class HDArea(_ISiteSigninHandler):
                                 timeout=timeout
                                 ).post_res(url="https://hdarea.club/sign_in.php", data=data)
         if not html_res or html_res.status_code != 200:
-            logger.warn(f"{site} 签到失败，请检查站点连通性")
+            logger.warning(f"{site} 签到失败，请检查站点连通性")
             return False, '签到失败，请检查站点连通性'
 
         if "login.php" in html_res.text:
-            logger.warn(f"{site} 签到失败，Cookie已失效")
+            logger.warning(f"{site} 签到失败，Cookie已失效")
             return False, '签到失败，Cookie已失效'
 
         # 判断是否已签到
@@ -67,5 +67,5 @@ class HDArea(_ISiteSigninHandler):
             logger.info(f"{site} 今日已签到")
             return True, '今日已签到'
 
-        logger.warn(f"{site} 签到失败，接口返回：\n{html_res.text}")
+        logger.warning(f"{site} 签到失败，接口返回：\n{html_res.text}")
         return False, '签到失败，请查看日志'

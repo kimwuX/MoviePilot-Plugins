@@ -37,7 +37,7 @@ class AutoSignIn(_PluginBase):
     # 插件图标
     plugin_icon = "signin.png"
     # 插件版本
-    plugin_version = "2.7.0.13"
+    plugin_version = "2.7.0.14"
     # 插件作者
     plugin_author = "thsrite"
     # 作者主页
@@ -104,9 +104,8 @@ class AutoSignIn(_PluginBase):
             # 保存配置
             self.__update_config()
 
-        # 加载模块
         if self._enabled or self._onlyonce:
-
+            # 加载模块
             self._site_schema = ModuleHelper.load('app.plugins.autosignin.sites',
                                                   filter_func=lambda _, obj: hasattr(obj, 'match'))
 
@@ -704,10 +703,9 @@ class AutoSignIn(_PluginBase):
                 'component': 'VAlert',
                 'props': {
                     'type': 'info',
-                    'text': '暂无签到数据',
+                    'text': '暂无签到和登录数据',
                     'variant': 'tonal',
-                    'class': 'mt-4',
-                    'prepend-icon': 'mdi-information'
+                    'class': 'mt-4'
                 }
             }]
 
@@ -756,8 +754,8 @@ class AutoSignIn(_PluginBase):
                 login_site_data[site_name] = []
             login_site_data[site_name].append(record)
 
-        # 创建签到折叠面板
-        signin_panels = []
+        site_success = []
+        site_failure = []
         for site_name, records in signin_site_data.items():
             # 按日期排序，最新的在前面
             try:
@@ -768,32 +766,47 @@ class AutoSignIn(_PluginBase):
             # 获取最新的状态作为站点概要
             latest_status = records[0].get("status", "未知状态")
 
-            # 确定状态颜色和图标
-            status_color = "teal-lighten-3"
-            status_icon = "mdi-emoticon-happy-outline"
+            if re.search(r'已签到|成功', latest_status):
+                site_success.append(site_name)
+            else:
+                site_failure.append(site_name)
 
-            if "失败" in latest_status or "错误" in latest_status:
-                status_color = "deep-orange-lighten-3"
-                status_icon = "mdi-emoticon-sad-outline"
-            elif "Cookie已失效" in latest_status:
-                status_color = "pink-lighten-3"
-                status_icon = "mdi-cookie-off"
+        # 签到失败的站点排在前面
+        site_sorted = site_failure + site_success
+
+        # 创建签到折叠面板
+        signin_panels = []
+        for site_name in site_sorted:
+            records = signin_site_data.get(site_name)
+            # 获取最新的状态作为站点概要
+            latest_status = records[0].get("status", "未知状态")
+
+            # 确定状态颜色和图标
+            status_color = "orange-lighten-2"
+            status_icon = "mdi-bell-alert-outline"
+
+            if "Cookie已失效" in latest_status:
+                status_color = "pink-lighten-2"
+                status_icon = "mdi-cookie-alert-outline"
             elif "重试" in latest_status:
-                status_color = "amber-lighten-3"
-                status_icon = "mdi-emoticon-confused-outline"
+                status_color = "amber-lighten-2"
+                status_icon = "mdi-restart-alert"
+            elif "失败" in latest_status or "错误" in latest_status:
+                status_color = "deep-orange-lighten-2"
+                status_icon = "mdi-alert-circle-outline"
             elif "已签到" in latest_status:
-                status_color = "light-blue-lighten-3"
-                status_icon = "mdi-emoticon-cool-outline"
+                status_color = "blue-lighten-2"
+                status_icon = "mdi-checkbox-marked-circle-plus-outline"
             elif "成功" in latest_status:
-                status_color = "teal-lighten-3"
-                status_icon = "mdi-emoticon-happy-outline"
+                status_color = "teal-lighten-2"
+                status_icon = "mdi-checkbox-marked-circle-outline"
 
             # 创建每个站点的折叠面板
             signin_panels.append(
                 self._create_expansion_panel(site_name, records, status_color, status_icon, latest_status))
 
-        # 创建登录折叠面板
-        login_panels = []
+        site_success = []
+        site_failure = []
         for site_name, records in login_site_data.items():
             # 按日期排序，最新的在前面
             try:
@@ -804,25 +817,40 @@ class AutoSignIn(_PluginBase):
             # 获取最新的状态作为站点概要
             latest_status = records[0].get("status", "未知状态")
 
-            # 确定状态颜色和图标
-            status_color = "teal-lighten-3"
-            status_icon = "mdi-emoticon-happy-outline"
+            if re.search(r'已登录|成功', latest_status):
+                site_success.append(site_name)
+            else:
+                site_failure.append(site_name)
 
-            if "失败" in latest_status or "错误" in latest_status:
-                status_color = "deep-orange-lighten-3"
-                status_icon = "mdi-emoticon-sad-outline"
-            elif "Cookie已失效" in latest_status:
-                status_color = "pink-lighten-3"
-                status_icon = "mdi-cookie-off"
+        # 登录失败的站点排在前面
+        site_sorted = site_failure + site_success
+
+        # 创建登录折叠面板
+        login_panels = []
+        for site_name in site_sorted:
+            records = login_site_data.get(site_name)
+            # 获取最新的状态作为站点概要
+            latest_status = records[0].get("status", "未知状态")
+
+            # 确定状态颜色和图标
+            status_color = "orange-lighten-2"
+            status_icon = "mdi-bell-alert-outline"
+
+            if "Cookie已失效" in latest_status:
+                status_color = "pink-lighten-2"
+                status_icon = "mdi-cookie-alert-outline"
             elif "重试" in latest_status:
-                status_color = "amber-lighten-3"
-                status_icon = "mdi-emoticon-confused-outline"
-            elif "已签到" in latest_status:
-                status_color = "light-blue-lighten-3"
-                status_icon = "mdi-emoticon-cool-outline"
+                status_color = "amber-lighten-2"
+                status_icon = "mdi-restart-alert"
+            elif "失败" in latest_status or "错误" in latest_status:
+                status_color = "deep-orange-lighten-2"
+                status_icon = "mdi-alert-circle-outline"
+            elif "已登录" in latest_status:
+                status_color = "blue-lighten-2"
+                status_icon = "mdi-checkbox-marked-circle-plus-outline"
             elif "成功" in latest_status:
-                status_color = "teal-lighten-3"
-                status_icon = "mdi-emoticon-happy-outline"
+                status_color = "teal-lighten-2"
+                status_icon = "mdi-checkbox-marked-circle-outline"
 
             # 创建每个站点的折叠面板
             login_panels.append(
@@ -841,7 +869,6 @@ class AutoSignIn(_PluginBase):
                     padding: 0 !important;
                 }
                 .v-expansion-panel {
-
                     margin-bottom: 10px !important;
                     box-shadow: 0 2px 8px rgba(0,0,0,0.05);
                     border-radius: 16px !important;
@@ -850,7 +877,6 @@ class AutoSignIn(_PluginBase):
                     transition: all 0.3s ease;
                 }
                 .v-expansion-panel:hover {
-
                     box-shadow: 0 4px 12px rgba(0,0,0,0.08) !important;
                     transform: translateY(-2px);
                 }
@@ -858,27 +884,30 @@ class AutoSignIn(_PluginBase):
                     border-radius: 10px;
                     transition: all 0.3s ease;
                     margin: 5px 0;
-
                 }
                 .site-item:hover {
-
-                    transform: scale(1.01);
                     box-shadow: 0 2px 8px rgba(0,0,0,0.05);
                 }
-                .text-teal-lighten-3 {
-                    color: #80CBC4 !important;
+                .text-teal-lighten-2 {
+                    color: #4DB6AC !important;
                 }
-                .text-deep-orange-lighten-3 {
-                    color: #FFAB91 !important;
+                .text-deep-orange-lighten-2 {
+                    color: #FF8A65 !important;
                 }
-                .text-pink-lighten-3 {
-                    color: #F8BBD0 !important;
+                .text-orange-lighten-2 {
+                    color: #FFB74D !important;
                 }
-                .text-amber-lighten-3 {
-                    color: #FFE082 !important;
+                .text-pink-lighten-2 {
+                    color: #F06292 !important;
                 }
-                .text-light-blue-lighten-3 {
-                    color: #81D4FA !important;
+                .text-amber-lighten-2 {
+                    color: #FFD54F !important;
+                }
+                .text-blue-lighten-2 {
+                    color: #64B5F6 !important;
+                }
+                .text-brown-lighten-2 {
+                    color: #A1887F !important;
                 }
                 .status-icon {
                     width: 24px;
@@ -896,7 +925,6 @@ class AutoSignIn(_PluginBase):
                     border: 1px solid rgba(0,0,0,0.03);
                 }
                 .signin-card:hover, .login-card:hover {
-                    transform: translateY(-3px);
                     box-shadow: 0 6px 20px rgba(0,0,0,0.05) !important;
                 }
                 .v-card-title.gradient-title {
@@ -920,7 +948,7 @@ class AutoSignIn(_PluginBase):
                     box-shadow: 0 2px 4px rgba(0,0,0,0.03);
                 }
                 .site-icon {
-                    background: linear-gradient(45deg, #80CBC4, #81D4FA);
+                    background: linear-gradient(45deg, #4DB6AC, #64B5F6);
                     color: white !important;
                     border-radius: 12px;
                     width: 32px;
@@ -936,7 +964,7 @@ class AutoSignIn(_PluginBase):
                 .page-title {
                     font-size: 1.5rem;
                     font-weight: 600;
-                    background: -webkit-linear-gradient(45deg, #80CBC4, #81D4FA);
+                    background: -webkit-linear-gradient(45deg, #4DB6AC, #64B5F6);
                     -webkit-background-clip: text;
                     -webkit-text-fill-color: transparent;
                 }
@@ -964,18 +992,18 @@ class AutoSignIn(_PluginBase):
                                     {
                                         'component': 'VIcon',
                                         'props': {
-                                            'color': 'light-blue-lighten-3',
+                                            'color': 'teal-lighten-2',
                                             'class': 'mr-2',
-                                            'size': 'large',
-                                            'icon': 'mdi-cat'
-                                        }
+                                            'size': 'large'
+                                        },
+                                        'text': 'mdi-calendar-check-outline'
                                     },
                                     {
                                         'component': 'h2',
                                         'props': {
                                             'class': 'page-title m-0'
                                         },
-                                        'text': '站点签到小助手'
+                                        'text': f'{self.plugin_name} v{self.plugin_version}'
                                     },
                                     {
                                         'component': 'VSpacer'
@@ -983,9 +1011,8 @@ class AutoSignIn(_PluginBase):
                                     {
                                         'component': 'VChip',
                                         'props': {
-                                            'color': 'light-blue-lighten-5',
+                                            'color': 'blue-lighten-2',
                                             'size': 'small',
-                                            'variant': 'elevated',
                                             'class': 'ml-2',
                                             'prepend-icon': 'mdi-paw'
                                         },
@@ -1025,17 +1052,17 @@ class AutoSignIn(_PluginBase):
                                                 'component': 'VIcon',
                                                 'props': {
                                                     'class': 'mr-2',
-                                                    'color': 'teal-lighten-3',
-                                                    'size': 'small',
-                                                    'icon': 'mdi-duck'
-                                                }
+                                                    'color': 'teal-lighten-2',
+                                                    'size': 'small'
+                                                },
+                                                'text': 'mdi-account-check-outline'
                                             },
                                             {
                                                 'component': 'span',
                                                 'props': {
-                                                    'class': 'font-weight-medium'
+                                                    'class': 'text-teal-lighten-2 font-weight-medium'
                                                 },
-                                                'text': '签到打卡记录'
+                                                'text': '签到记录'
                                             },
                                             {
                                                 'component': 'VSpacer'
@@ -1043,13 +1070,11 @@ class AutoSignIn(_PluginBase):
                                             {
                                                 'component': 'VChip',
                                                 'props': {
-                                                    'color': 'teal-lighten-5',
+                                                    'color': 'teal-lighten-2',
                                                     'size': 'x-small',
-                                                    'variant': 'elevated',
-                                                    'class': 'ml-2',
-                                                    'prepend-icon': 'mdi-rabbit'
+                                                    'class': 'ml-2'
                                                 },
-                                                'text': f'{len(signin_site_data)} 个站点'
+                                                'text': f'已签到 {len(signin_site_data)} 个站点'
                                             }
                                         ]
                                     },
@@ -1068,12 +1093,11 @@ class AutoSignIn(_PluginBase):
                                                 'content': signin_panels or [{
                                                     'component': 'VAlert',
                                                     'props': {
-                                                        'type': 'info',
+                                                        'type': 'warning',
                                                         'text': '暂无签到数据',
                                                         'variant': 'tonal',
                                                         'class': 'mt-2',
-                                                        'density': 'compact',
-                                                        'prepend-icon': 'mdi-penguin'
+                                                        'density': 'compact'
                                                     }
                                                 }]
                                             }
@@ -1108,15 +1132,15 @@ class AutoSignIn(_PluginBase):
                                                 'component': 'VIcon',
                                                 'props': {
                                                     'class': 'mr-2',
-                                                    'color': 'light-blue-accent-3',
-                                                    'size': 'small',
-                                                    'icon': 'mdi-dog'
-                                                }
+                                                    'color': 'blue-lighten-2',
+                                                    'size': 'small'
+                                                },
+                                                'text': 'mdi-login-variant'
                                             },
                                             {
                                                 'component': 'span',
                                                 'props': {
-                                                    'class': 'font-weight-medium'
+                                                    'class': 'text-blue-lighten-2 font-weight-medium'
                                                 },
                                                 'text': '登录记录'
                                             },
@@ -1126,13 +1150,11 @@ class AutoSignIn(_PluginBase):
                                             {
                                                 'component': 'VChip',
                                                 'props': {
-                                                    'color': 'light-blue-lighten-4',
+                                                    'color': 'blue-lighten-2',
                                                     'size': 'x-small',
-                                                    'variant': 'elevated',
-                                                    'class': 'ml-2',
-                                                    'prepend-icon': 'mdi-panda'
+                                                    'class': 'ml-2'
                                                 },
-                                                'text': f'{len(login_site_data)} 个站点'
+                                                'text': f'已登录 {len(login_site_data)} 个站点'
                                             }
                                         ]
                                     },
@@ -1151,12 +1173,11 @@ class AutoSignIn(_PluginBase):
                                                 'content': login_panels or [{
                                                     'component': 'VAlert',
                                                     'props': {
-                                                        'type': 'info',
+                                                        'type': 'warning',
                                                         'text': '暂无登录数据',
                                                         'variant': 'tonal',
                                                         'class': 'mt-2',
-                                                        'density': 'compact',
-                                                        'prepend-icon': 'mdi-cat'
+                                                        'density': 'compact'
                                                     }
                                                 }]
                                             }
@@ -1182,24 +1203,24 @@ class AutoSignIn(_PluginBase):
             status_text = record.get("status", "未知状态")
 
             # 确定状态颜色和图标
-            record_color = "success"
-            record_icon = "mdi-check-circle"
+            record_color = "orange-lighten-2"
+            record_icon = "mdi-bell-alert-outline"
 
-            if "失败" in status_text or "错误" in status_text:
-                record_color = "error"
-                record_icon = "mdi-alert-circle"
-            elif "Cookie已失效" in status_text:
-                record_color = "error"
-                record_icon = "mdi-cookie-off"
+            if "Cookie已失效" in status_text:
+                record_color = "pink-lighten-2"
+                record_icon = "mdi-cookie-alert-outline"
             elif "重试" in status_text:
-                record_color = "warning"
-                record_icon = "mdi-refresh"
-            elif "已签到" in status_text:
-                record_color = "info"
-                record_icon = "mdi-check"
-            elif "登录成功" in status_text:
-                record_color = "success"
-                record_icon = "mdi-login-variant"
+                record_color = "amber-lighten-2"
+                record_icon = "mdi-restart-alert"
+            elif "失败" in status_text or "错误" in status_text:
+                record_color = "deep-orange-lighten-2"
+                record_icon = "mdi-alert-circle-outline"
+            elif "已签到" in status_text or "已登录" in status_text:
+                record_color = "blue-lighten-2"
+                record_icon = "mdi-checkbox-marked-circle-plus-outline"
+            elif "成功" in status_text:
+                record_color = "teal-lighten-2"
+                record_icon = "mdi-checkbox-marked-circle-outline"
 
             # 创建记录项
             records_list.append({
@@ -1217,11 +1238,10 @@ class AutoSignIn(_PluginBase):
                             {
                                 'component': 'VChip',
                                 'props': {
-                                    'color': 'grey-lighten-3',
+                                    'color': 'brown-lighten-2',
                                     'size': 'x-small',
                                     'class': 'date-chip mr-2',
-                                    'variant': 'flat',
-                                    'prepend-icon': 'mdi-flower-tulip'
+                                    'prepend-icon': 'mdi-calendar-month-outline'
                                 },
                                 'text': date_str
                             },
@@ -1234,7 +1254,6 @@ class AutoSignIn(_PluginBase):
                                     'color': record_color,
                                     'size': 'x-small',
                                     'class': 'ml-2 status-chip',
-                                    'variant': 'flat',
                                     'prepend-icon': record_icon
                                 },
                                 'text': status_text
@@ -1253,7 +1272,7 @@ class AutoSignIn(_PluginBase):
                     'content': [{
                         'component': 'div',
                         'props': {
-                            'class': 'd-flex align-center'
+                            'class': 'd-flex align-center w-100'
                         },
                         'content': [
                             {
@@ -1565,8 +1584,8 @@ class AutoSignIn(_PluginBase):
         domain = StringUtils.get_url_domain(site_info.get('url'))
         if state:
             self.siteoper.success(domain=domain, seconds=seconds)
-        else:
-            self.siteoper.fail(domain)
+        # else:
+        #     self.siteoper.fail(domain)
         return site_info.get("name"), message
 
     @staticmethod
@@ -1586,7 +1605,7 @@ class AutoSignIn(_PluginBase):
         proxy = site_info.get("proxy")
         timeout = site_info.get("timeout")
         if not site_url or not site_cookie:
-            logger.warn(f"未配置 {site} 的站点地址或Cookie，无法签到")
+            logger.warning(f"未配置 {site} 的站点地址或Cookie，无法签到")
             return False, ""
 
         # cloudflare challenge
@@ -1622,34 +1641,34 @@ class AutoSignIn(_PluginBase):
                                             timeout=timeout)
 
             if not html_text:
-                logger.warn(f"{site} 签到失败，请检查站点连通性")
+                logger.warning(f"{site} 签到失败，请检查站点连通性")
                 return False, '签到失败，请检查站点连通性'
 
             if under_challenge(html_text):
-                logger.warn(f"{site} 签到失败，无法绕过Cloudflare检测")
+                logger.warning(f"{site} 签到失败，无法绕过Cloudflare检测")
                 return False, '签到失败，无法绕过Cloudflare检测'
 
             for regex in re_sl:
                 if re.search(regex, html_text):
-                    logger.warn(f"{site} 签到失败，无法绕过雷池检测")
+                    logger.warning(f"{site} 签到失败，无法绕过雷池检测")
                     return False, '签到失败，无法绕过雷池检测'
 
             for regex in re_ch:
                 if re.search(regex, html_text):
-                    logger.warn(f"{site} 签到失败，无法通过验证")
+                    logger.warning(f"{site} 签到失败，无法通过验证")
                     return False, '签到失败，无法通过验证'
 
             if not SiteUtils.is_logged_in(html_text):
-                logger.warn(f"{site} 签到失败，Cookie已失效")
+                logger.warning(f"{site} 签到失败，Cookie已失效")
                 return False, '签到失败，Cookie已失效'
 
             for regex in re_cf:
                 if re.search(regex, html_text):
-                    logger.warn(f"{site} 签到失败，签到页面已被Cloudflare防护")
+                    logger.warning(f"{site} 签到失败，签到页面已被Cloudflare防护")
                     return False, '签到失败，签到页面已被Cloudflare防护'
 
             if "take2fa.php" in html_text:
-                logger.warn(f"{site} 签到失败，两步验证拦截")
+                logger.warning(f"{site} 签到失败，两步验证拦截")
                 return False, '签到失败，两步验证拦截'
 
             # 已签到
@@ -1664,11 +1683,11 @@ class AutoSignIn(_PluginBase):
                     logger.info(f"{site} 签到成功")
                     return True, '签到成功'
 
-            logger.warn(f"{site} 签到失败，接口返回：\n{html_text}")
+            logger.warning(f"{site} 签到失败，接口返回：\n{html_text}")
             return False, '签到失败，请查看日志'
         except Exception as e:
             traceback.print_exc()
-            logger.warn(f"{site} 签到失败，错误信息：\n{str(e)}")
+            logger.warning(f"{site} 签到失败，错误信息：\n{str(e)}")
             return False, '签到失败，未知错误'
 
     def login_site(self, site_info: CommentedMap) -> Tuple[str, str]:
@@ -1691,8 +1710,8 @@ class AutoSignIn(_PluginBase):
         domain = StringUtils.get_url_domain(site_info.get('url'))
         if state:
             self.siteoper.success(domain=domain, seconds=seconds)
-        else:
-            self.siteoper.fail(domain)
+        # else:
+        #     self.siteoper.fail(domain)
         return site_info.get("name"), message
 
     @staticmethod
@@ -1712,7 +1731,7 @@ class AutoSignIn(_PluginBase):
         proxy = site_info.get("proxy")
         timeout = site_info.get("timeout")
         if not site_url or not site_cookie:
-            logger.warn(f"未配置 {site} 的站点地址或Cookie，无法模拟登录")
+            logger.warning(f"未配置 {site} 的站点地址或Cookie，无法模拟登录")
             return False, ""
 
         # safeline firewall
@@ -1729,27 +1748,27 @@ class AutoSignIn(_PluginBase):
                                             timeout=timeout)
 
             if not html_text:
-                logger.warn(f"{site} 模拟登录失败，请检查站点连通性")
+                logger.warning(f"{site} 模拟登录失败，请检查站点连通性")
                 return False, '模拟登录失败，请检查站点连通性'
 
             if under_challenge(html_text):
-                logger.warn(f"{site} 模拟登录失败，无法绕过Cloudflare检测")
+                logger.warning(f"{site} 模拟登录失败，无法绕过Cloudflare检测")
                 return False, '模拟登录失败，无法绕过Cloudflare检测'
 
             for regex in re_sl:
                 if re.search(regex, html_text):
-                    logger.warn(f"{site} 模拟登录失败，无法绕过雷池检测")
+                    logger.warning(f"{site} 模拟登录失败，无法绕过雷池检测")
                     return False, '模拟登录失败，无法绕过雷池检测'
 
             if not SiteUtils.is_logged_in(html_text):
-                logger.warn(f"{site} 模拟登录失败，Cookie已失效")
+                logger.warning(f"{site} 模拟登录失败，Cookie已失效")
                 return False, '模拟登录失败，Cookie已失效'
 
             logger.info(f"{site} 模拟登录成功")
             return True, '模拟登录成功'
         except Exception as e:
             traceback.print_exc()
-            logger.warn(f"{site} 模拟登录失败，错误信息：\n{str(e)}")
+            logger.warning(f"{site} 模拟登录失败，错误信息：\n{str(e)}")
             return False, '模拟登录失败，未知错误'
 
     @staticmethod

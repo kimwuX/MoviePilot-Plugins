@@ -48,11 +48,11 @@ class HaiDan(_ISiteSigninHandler):
                                          timeout=timeout)
 
         if not html_text:
-            logger.warn(f"{site} 签到失败，请检查站点连通性")
+            logger.warning(f"{site} 签到失败，请检查站点连通性")
             return False, '签到失败，请检查站点连通性'
 
         if "login.php" in html_text:
-            logger.warn(f"{site} 签到失败，Cookie已失效")
+            logger.warning(f"{site} 签到失败，Cookie已失效")
             return False, '签到失败，Cookie已失效'
 
         sign_status = self.sign_in_result(html_res=html_text,
@@ -61,5 +61,5 @@ class HaiDan(_ISiteSigninHandler):
             logger.info(f"{site} 签到成功")
             return True, '签到成功'
 
-        logger.warn(f"{site} 签到失败，接口返回：\n{html_text}")
+        logger.warning(f"{site} 签到失败，接口返回：\n{html_text}")
         return False, '签到失败，请查看日志'

@@ -1,5 +1,10 @@
+from datetime import datetime, timedelta
 from typing import List, Tuple, Dict, Any, Optional
 
+import pytz
+from apscheduler.schedulers.background import BackgroundScheduler
+
+from app.core.config import settings
 from app.db.downloadhistory_oper import DownloadHistoryOper, DownloadHistory
 from app.helper.downloader import DownloaderHelper
 from app.log import logger
@@ -15,7 +20,7 @@ class DownloadHistoryCleaner(_PluginBase):
     # 插件图标
     plugin_icon = "clean.png"
     # 插件版本
-    plugin_version = "1.0"
+    plugin_version = "1.1"
     # 插件作者
     plugin_author = "kim.wu"
     # 作者主页
@@ -27,11 +32,13 @@ class DownloadHistoryCleaner(_PluginBase):
     # 可使用的用户级别
     auth_level = 1
 
+    # 调度器
+    __scheduler: Optional[BackgroundScheduler] = None
     # 下载历史管理
     __history_oper: DownloadHistoryOper = None
 
     # 配置属性
-    _onlyonce = True
+    _onlyonce = False
     _delete_torrent = True
     _delete_file = True
     _titles = []
@@ -47,10 +54,20 @@ class DownloadHistoryCleaner(_PluginBase):
 
         # 立即运行一次
         if self._onlyonce:
-            if self._titles or self._episodes:
-                self.clean_up()
+            logger.info("立即运行一次")
+            self.__scheduler = BackgroundScheduler(timezone=settings.TZ)
+            self.__scheduler.add_job(func=self.clean_up, trigger="date",
+                                        run_date=datetime.now(tz=pytz.timezone(settings.TZ)) + timedelta(seconds=3))
 
-        self.__update_config()
+            # 关闭一次性开关
+            self._onlyonce = False
+            # 保存配置
+            self.__update_config()
+
+            # 启动任务
+            if self.__scheduler.get_jobs():
+                self.__scheduler.print_jobs()
+                self.__scheduler.start()
 
     def __read_config(self, config: dict):
         if config:
@@ -62,7 +79,7 @@ class DownloadHistoryCleaner(_PluginBase):
 
     def __update_config(self):
         self.update_config({
-            "onlyonce": True,
+            "onlyonce": self._onlyonce,
             "delete_torrent": True,
             "delete_file": True,
             "titles": self._titles,
@@ -115,7 +132,7 @@ class DownloadHistoryCleaner(_PluginBase):
 
     def __delete_related_torrents(self, downloader: ServiceInfo, torrents: List):
         if downloader.type not in ["qbittorrent", "transmission"]:
-            logger.warn(f"不支持的下载器：{downloader.name}")
+            logger.warning(f"不支持的下载器：{downloader.name}")
             return
 
         res, _ = downloader.instance.get_torrents()
@@ -153,7 +170,12 @@ class DownloadHistoryCleaner(_PluginBase):
         return self.__get_value(type, obj1, key) == self.__get_value(type, obj2, key)
 
     def clean_up(self):
-        logger.info(f"已选择：{self._titles} {self._episodes}")
+        if self._titles or self._episodes:
+            logger.info(f"已选择删除：{self._titles} & {self._episodes}")
+        else:
+            logger.warning("未选择剧集，结束运行")
+            return
+
         try:
             histories = []
             download_hashes = {}
@@ -186,6 +208,7 @@ class DownloadHistoryCleaner(_PluginBase):
 
             self._titles.clear()
             self._episodes.clear()
+            self.__update_config()
         except Exception as e:
             logger.error(f"插件任务异常：{str(e)}", exc_info=True)
 
@@ -259,7 +282,7 @@ class DownloadHistoryCleaner(_PluginBase):
                                         'component': 'VSwitch',
                                         'props': {
                                             'model': 'delete_torrent',
-                                            'label': '删除种子',
+                                            'label': '删除辅种任务',
                                         }
                                     }
                                 ]
@@ -275,7 +298,7 @@ class DownloadHistoryCleaner(_PluginBase):
                                         'component': 'VSwitch',
                                         'props': {
                                             'model': 'delete_file',
-                                            'label': '删除文件',
+                                            'label': '删除数据文件',
                                         }
                                     }
                                 ]
@@ -333,7 +356,7 @@ class DownloadHistoryCleaner(_PluginBase):
                  ]
             }
         ], {
-            "onlyonce": True,
+            "onlyonce": False,
             "delete_torrent": True,
             "delete_file": True,
             "titles": [],
@@ -388,7 +411,14 @@ class DownloadHistoryCleaner(_PluginBase):
         """
         退出插件
         """
-        pass
+        try:
+            if self.__scheduler:
+                self.__scheduler.remove_all_jobs()
+                if self.__scheduler.running:
+                    self.__scheduler.shutdown()
+                self.__scheduler = None
+        except Exception as e:
+            logger.error(f"插件服务停止异常：{str(e)}", exc_info=True)
 
     @property
     def service_infos(self) -> Optional[Dict[str, ServiceInfo]]:
