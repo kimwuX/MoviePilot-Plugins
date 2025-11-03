@@ -3,7 +3,7 @@
         "name": "种子Tracker管理",
         "description": "可替换、删除、增加种子tracker。",
         "labels": "种子管理",
-        "version": "1.0",
+        "version": "1.1",
         "icon": "https://raw.githubusercontent.com/kimwuX/MoviePilot-Plugins/main/icons/Torrent_B.png",
         "author": "kim.wu",
         "level": 1,

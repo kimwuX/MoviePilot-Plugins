@@ -27,7 +27,7 @@ class TrackerManager(_PluginBase):
     # 插件图标
     plugin_icon = "https://raw.githubusercontent.com/kimwuX/MoviePilot-Plugins/main/icons/Torrent_B.png"
     # 插件版本
-    plugin_version = "1.0"
+    plugin_version = "1.1"
     # 插件作者
     plugin_author = "kim.wu"
     # 作者主页
@@ -352,6 +352,8 @@ class TrackerManager(_PluginBase):
         for line in self._rules.split("\n"):
             line = line.strip()
             if not line:
+                continue
+            if line.startswith("#"):
                 continue
             parts = line.split("|")
             count = len(parts)
