@@ -353,6 +353,7 @@ class TrackerManager(_PluginBase):
             line = line.strip()
             if not line:
                 continue
+            # 以 '#' 开头视为注释
             if line.startswith("#"):
                 continue
             parts = line.split("|")

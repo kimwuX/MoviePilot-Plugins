@@ -1,6 +1,7 @@
 import json
 import re
 from typing import Tuple
+from urllib.parse import urljoin
 
 from lxml import etree
 from ruamel.yaml import CommentedMap
@@ -16,18 +17,16 @@ class Pt52(_ISiteSigninHandler):
     """
     52pt签到
     """
-    # 匹配的站点Url，每一个实现类都需要设置为自己的站点Url
-    site_url = "52pt.site"
-
-    # 签到地址
-    _sign_in_url = 'https://52pt.site/bakatest.php'
 
     # 已签到
     _sign_regex = ['今天已经签过到了']
-
     # 签到成功
     # 连续11天签到,获得28+1+60点魔力值
     _success_regex = [r'连续\d+天签到,获得[\d\+]+点魔力值']
+
+    _signin_path = "/bakatest.php"
+    # 签到地址
+    _signin_url = "https://52pt.site/bakatest.php"
 
     # 存储答案的文件
     _answer_file = None
@@ -36,14 +35,12 @@ class Pt52(_ISiteSigninHandler):
         self._answer_file = self.get_data_path("52pt.json")
         logger.debug(f"答案文件路径：{self._answer_file}")
 
-    @classmethod
-    def match(cls, url: str) -> bool:
+    @staticmethod
+    def get_netloc():
         """
-        根据站点Url判断是否匹配当前站点签到类，大部分情况使用默认实现即可
-        :param url: 站点Url
-        :return: 是否匹配，如匹配则会调用该类的signin方法
+        获取当前站点域名，可以是单个或者多个域名
         """
-        return True if StringUtils.url_equal(url, cls.site_url) else False
+        return "52pt.site"
 
     def signin(self, site_info: CommentedMap) -> Tuple[bool, str]:
         """
@@ -52,14 +49,18 @@ class Pt52(_ISiteSigninHandler):
         :return: 签到结果信息
         """
         site = site_info.get("name")
+        url = site_info.get("url")
         site_cookie = site_info.get("cookie")
         ua = site_info.get("ua")
         proxy = site_info.get("proxy")
         render = site_info.get("render")
         timeout = site_info.get("timeout")
 
+        self._signin_url = urljoin(url, self._signin_path)
+        logger.info(f"开始签到 {site}，地址：{self._signin_url}")
+
         # 判断今日是否已签到
-        html_text = self.get_page_source(url=self._sign_in_url,
+        html_text = self.get_page_source(url=self._signin_url,
                                          cookie=site_cookie,
                                          ua=ua,
                                          proxy=proxy,
@@ -149,7 +150,7 @@ class Pt52(_ISiteSigninHandler):
                                 ua=ua,
                                 proxies=settings.PROXY if proxy else None,
                                 timeout=timeout
-                                ).post_res(url=self._sign_in_url, data=data)
+                                ).post_res(url=self._signin_url, data=data)
         if not sign_res or sign_res.status_code != 200:
             logger.warning(f"{site} 签到失败，签到接口请求失败")
             return False, '签到失败，签到接口请求失败'

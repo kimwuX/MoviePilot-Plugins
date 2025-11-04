@@ -1,6 +1,7 @@
 import json
 import time
 from typing import Tuple
+from urllib.parse import urljoin
 
 from ruamel.yaml import CommentedMap
 
@@ -14,22 +15,22 @@ from app.utils.string import StringUtils
 
 class HDSky(_ISiteSigninHandler):
     """
-    天空ocr签到
+    天空签到
     """
-    # 匹配的站点Url，每一个实现类都需要设置为自己的站点Url
-    site_url = "hdsky.me"
 
     # 已签到
     _sign_regex = ['已签到']
 
-    @classmethod
-    def match(cls, url: str) -> bool:
+    _signin_path = "/showup.php"
+    # 签到地址
+    _signin_url = "https://hdsky.me/showup.php"
+
+    @staticmethod
+    def get_netloc():
         """
-        根据站点Url判断是否匹配当前站点签到类，大部分情况使用默认实现即可
-        :param url: 站点Url
-        :return: 是否匹配，如匹配则会调用该类的signin方法
+        获取当前站点域名，可以是单个或者多个域名
         """
-        return True if StringUtils.url_equal(url, cls.site_url) else False
+        return ["hdsky.me", "hdsky.my"]
 
     def signin(self, site_info: CommentedMap) -> Tuple[bool, str]:
         """
@@ -38,15 +39,18 @@ class HDSky(_ISiteSigninHandler):
         :return: 签到结果信息
         """
         site = site_info.get("name")
+        url = site_info.get("url")
         site_cookie = site_info.get("cookie")
         ua = site_info.get("ua")
         proxy = site_info.get("proxy")
         render = site_info.get("render")
-        referer = site_info.get("url")
         timeout = site_info.get("timeout")
 
+        self._signin_url = urljoin(url, self._signin_path)
+        logger.info(f"开始签到 {site}，地址：{self._signin_url}")
+
         # 判断今日是否已签到
-        html_text = self.get_page_source(url='https://hdsky.me',
+        html_text = self.get_page_source(url=url,
                                          cookie=site_cookie,
                                          ua=ua,
                                          proxy=proxy,
@@ -74,12 +78,12 @@ class HDSky(_ISiteSigninHandler):
                 logger.warning(f"{site} 验证码图片获取失败，正在进行第{res_times}次重试")
             image_res = RequestUtils(cookies=site_cookie,
                                      ua=ua,
-                                     content_type='application/x-www-form-urlencoded; charset=UTF-8',
-                                     referer="https://hdsky.me/index.php",
-                                     accept_type="*/*",
                                      proxies=settings.PROXY if proxy else None,
-                                     timeout=timeout
-                                     ).post_res(url='https://hdsky.me/image_code_ajax.php',
+                                     timeout=timeout,
+                                     referer=url,
+                                     content_type='application/x-www-form-urlencoded; charset=UTF-8',
+                                     accept_type="*/*"
+                                     ).post_res(url=urljoin(url, "/image_code_ajax.php"),
                                                 data={'action': 'new'})
             if image_res and image_res.status_code == 200:
                 image_json = json.loads(image_res.text)
@@ -94,7 +98,7 @@ class HDSky(_ISiteSigninHandler):
             return False, '签到失败，获取签到参数失败'
 
         # 完整验证码url
-        img_get_url = 'https://hdsky.me/image.php?action=regimage&imagehash=%s' % img_hash
+        img_get_url = urljoin(url, f'/image.php?action=regimage&imagehash={img_hash}')
         logger.info(f"{site} 验证码链接：{img_get_url}")
 
         # ocr识别多次，获取6位验证码
@@ -129,9 +133,10 @@ class HDSky(_ISiteSigninHandler):
         logger.debug(f"{site} 签到请求参数：{data}")
         sign_res = RequestUtils(cookies=site_cookie,
                                 ua=ua,
-                                referer=referer,
-                                proxies=settings.PROXY if proxy else None
-                                ).post_res(url='https://hdsky.me/showup.php', data=data)
+                                proxies=settings.PROXY if proxy else None,
+                                timeout=timeout,
+                                referer=url
+                                ).post_res(url=self._signin_path, data=data)
         if not sign_res or sign_res.status_code != 200:
             logger.warning(f"{site} 签到失败，签到接口请求失败")
             return False, '签到失败，签到接口请求失败'

@@ -8,6 +8,7 @@
         "author": "kim.wu",
         "level": 1,
         "history": {
+            "v1.1": "规则支持添加注释",
             "v1.0": "种子Tracker管理插件"
         }
     },
@@ -20,6 +21,7 @@
         "author": "kim.wu",
         "level": 1,
         "history": {
+            "v1.1": "优化调度执行逻辑",
             "v1.0": "下载历史记录清理插件"
         }
     },
@@ -27,7 +29,7 @@
         "name": "站点自动签到",
         "description": "自动模拟登录、签到站点。",
         "labels": "站点",
-        "version": "2.7.0.14",
+        "version": "2.7.0.15",
         "icon": "signin.png",
         "author": "thsrite",
         "level": 2,

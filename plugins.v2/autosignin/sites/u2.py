@@ -2,6 +2,7 @@ import datetime
 import random
 import re
 from typing import Tuple
+from urllib.parse import urljoin
 
 from lxml import etree
 from ruamel.yaml import CommentedMap
@@ -17,8 +18,6 @@ class U2(_ISiteSigninHandler):
     """
     U2签到 随机
     """
-    # 匹配的站点Url，每一个实现类都需要设置为自己的站点Url
-    site_url = "u2.dmhy.org"
 
     # 已签到
     _sign_regex = ['<a href="showup.php">已签到</a>',
@@ -30,14 +29,16 @@ class U2(_ISiteSigninHandler):
     # 签到成功
     _success_text = "window.location.href = 'showup.php';</script>"
 
-    @classmethod
-    def match(cls, url: str) -> bool:
+    _signin_path = "/showup.php?action=show"
+    # 签到地址
+    _signin_url = "https://u2.dmhy.org/showup.php?action=show"
+
+    @staticmethod
+    def get_netloc():
         """
-        根据站点Url判断是否匹配当前站点签到类，大部分情况使用默认实现即可
-        :param url: 站点Url
-        :return: 是否匹配，如匹配则会调用该类的signin方法
+        获取当前站点域名，可以是单个或者多个域名
         """
-        return True if StringUtils.url_equal(url, cls.site_url) else False
+        return "u2.dmhy.org"
 
     def signin(self, site_info: CommentedMap) -> Tuple[bool, str]:
         """
@@ -46,6 +47,7 @@ class U2(_ISiteSigninHandler):
         :return: 签到结果信息
         """
         site = site_info.get("name")
+        url = site_info.get("url")
         site_cookie = site_info.get("cookie")
         # ua = site_info.get("ua")
         ua = settings.NORMAL_USER_AGENT
@@ -58,9 +60,12 @@ class U2(_ISiteSigninHandler):
         if now.hour < 9:
             logger.warning(f"{site} 签到失败，9点前不签到")
             return False, '签到失败，9点前不签到'
-        
+
+        self._signin_url = urljoin(url, self._signin_path)
+        logger.info(f"开始签到 {site}，地址：{self._signin_url}")
+
         # 获取页面html
-        html_text = self.get_page_source(url="https://u2.dmhy.org/showup.php",
+        html_text = self.get_page_source(url=urljoin(url, "/showup.php"),
                                          cookie=site_cookie,
                                          ua=ua,
                                          proxy=proxy,
@@ -73,7 +78,7 @@ class U2(_ISiteSigninHandler):
         if "login.php" in html_text:
             logger.warning(f"{site} 签到失败，Cookie已失效")
             return False, '签到失败，Cookie已失效'
-        
+
         # 判断是否已签到
         sign_status = self.sign_in_result(html_res=html_text,
                                           regexs=self._sign_regex)
@@ -110,8 +115,7 @@ class U2(_ISiteSigninHandler):
                                 ua=ua,
                                 proxies=settings.PROXY if proxy else None,
                                 timeout=timeout
-                                ).post_res(url="https://u2.dmhy.org/showup.php?action=show",
-                                           data=data)
+                                ).post_res(url=self._signin_url, data=data)
         if not sign_res or sign_res.status_code != 200:
             logger.warning(f"{site} 签到失败，签到接口请求失败")
             return False, '签到失败，签到接口请求失败'

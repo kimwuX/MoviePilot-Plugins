@@ -1,5 +1,6 @@
 import json
 from typing import Tuple
+from urllib.parse import urljoin
 
 from ruamel.yaml import CommentedMap
 
@@ -14,20 +15,20 @@ class Hares(_ISiteSigninHandler):
     """
     白兔签到
     """
-    # 匹配的站点Url，每一个实现类都需要设置为自己的站点Url
-    site_url = "club.hares.top"
 
     # 已签到
     _sign_text = '已签到'
 
-    @classmethod
-    def match(cls, url: str) -> bool:
+    _signin_path = "/attendance.php?action=sign"
+    # 签到地址
+    _signin_url = "https://club.hares.top/attendance.php?action=sign"
+
+    @staticmethod
+    def get_netloc():
         """
-        根据站点Url判断是否匹配当前站点签到类，大部分情况使用默认实现即可
-        :param url: 站点Url
-        :return: 是否匹配，如匹配则会调用该类的signin方法
+        获取当前站点域名，可以是单个或者多个域名
         """
-        return True if StringUtils.url_equal(url, cls.site_url) else False
+        return "club.hares.top"
 
     def signin(self, site_info: CommentedMap) -> Tuple[bool, str]:
         """
@@ -36,14 +37,18 @@ class Hares(_ISiteSigninHandler):
         :return: 签到结果信息
         """
         site = site_info.get("name")
+        url = site_info.get("url")
         site_cookie = site_info.get("cookie")
         ua = site_info.get("ua")
         proxy = site_info.get("proxy")
         render = site_info.get("render")
         timeout = site_info.get("timeout")
 
+        self._signin_url = urljoin(url, self._signin_path)
+        logger.info(f"开始签到 {site}，地址：{self._signin_url}")
+
         # 获取页面html
-        html_text = self.get_page_source(url='https://club.hares.top',
+        html_text = self.get_page_source(url=url,
                                          cookie=site_cookie,
                                          ua=ua,
                                          proxy=proxy,
@@ -66,11 +71,11 @@ class Hares(_ISiteSigninHandler):
             'Accept': 'application/json',
             "User-Agent": ua
         }
-        sign_res = RequestUtils(cookies=site_cookie,
-                                headers=headers,
+        sign_res = RequestUtils(headers=headers,
+                                cookies=site_cookie,
                                 proxies=settings.PROXY if proxy else None,
                                 timeout=timeout
-                                ).get_res(url="https://club.hares.top/attendance.php?action=sign")
+                                ).get_res(url=self._signin_url)
         if not sign_res or sign_res.status_code != 200:
             logger.warning(f"{site} 签到失败，签到接口请求失败")
             return False, '签到失败，签到接口请求失败'

@@ -1,4 +1,5 @@
 from typing import Tuple
+from urllib.parse import urljoin
 
 from ruamel.yaml import CommentedMap
 
@@ -13,22 +14,22 @@ class HDArea(_ISiteSigninHandler):
     """
     好大签到
     """
-    # 匹配的站点Url，每一个实现类都需要设置为自己的站点Url
-    site_url = "hdarea.club"
 
     # 已连续签到278天，此次签到您获得了100魔力值奖励!
     _success_text = "此次签到您获得"
     # 请不要重复签到哦！
     _repeat_text = "请不要重复签到哦"
 
-    @classmethod
-    def match(cls, url: str) -> bool:
+    _signin_path = "/sign_in.php"
+    # 签到地址
+    _signin_url = "https://hdarea.club/sign_in.php"
+
+    @staticmethod
+    def get_netloc():
         """
-        根据站点Url判断是否匹配当前站点签到类，大部分情况使用默认实现即可
-        :param url: 站点Url
-        :return: 是否匹配，如匹配则会调用该类的signin方法
+        获取当前站点域名，可以是单个或者多个域名
         """
-        return True if StringUtils.url_equal(url, cls.site_url) else False
+        return "hdarea.club"
 
     def signin(self, site_info: CommentedMap) -> Tuple[bool, str]:
         """
@@ -37,10 +38,14 @@ class HDArea(_ISiteSigninHandler):
         :return: 签到结果信息
         """
         site = site_info.get("name")
+        url = site_info.get("url")
         site_cookie = site_info.get("cookie")
         ua = site_info.get("ua")
-        proxies = settings.PROXY if site_info.get("proxy") else None
+        proxy = site_info.get("proxy")
         timeout = site_info.get("timeout")
+
+        self._signin_url = urljoin(url, self._signin_path)
+        logger.info(f"开始签到 {site}，地址：{self._signin_url}")
 
         # 获取页面html
         data = {
@@ -48,9 +53,9 @@ class HDArea(_ISiteSigninHandler):
         }
         html_res = RequestUtils(cookies=site_cookie,
                                 ua=ua,
-                                proxies=proxies,
+                                proxies=settings.PROXY if proxy else None,
                                 timeout=timeout
-                                ).post_res(url="https://hdarea.club/sign_in.php", data=data)
+                                ).post_res(url=self._signin_url, data=data)
         if not html_res or html_res.status_code != 200:
             logger.warning(f"{site} 签到失败，请检查站点连通性")
             return False, '签到失败，请检查站点连通性'

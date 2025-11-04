@@ -1,5 +1,6 @@
 import json
 from typing import Tuple
+from urllib.parse import urljoin
 
 from lxml import etree
 from ruamel.yaml import CommentedMap
@@ -15,20 +16,20 @@ class HDChina(_ISiteSigninHandler):
     """
     瓷器签到
     """
-    # 匹配的站点Url，每一个实现类都需要设置为自己的站点Url
-    site_url = "hdchina.org"
 
     # 已签到
     _sign_regex = ['<a class="label label-default" href="#">已签到</a>']
 
-    @classmethod
-    def match(cls, url: str) -> bool:
+    _signin_path = "/plugin_sign-in.php?cmd=signin"
+    # 签到地址
+    _signin_url = "https://hdchina.org/plugin_sign-in.php?cmd=signin"
+
+    @staticmethod
+    def get_netloc():
         """
-        根据站点Url判断是否匹配当前站点签到类，大部分情况使用默认实现即可
-        :param url: 站点Url
-        :return: 是否匹配，如匹配则会调用该类的signin方法
+        获取当前站点域名，可以是单个或者多个域名
         """
-        return True if StringUtils.url_equal(url, cls.site_url) else False
+        return "hdchina.org"
 
     def signin(self, site_info: CommentedMap) -> Tuple[bool, str]:
         """
@@ -37,10 +38,14 @@ class HDChina(_ISiteSigninHandler):
         :return: 签到结果信息
         """
         site = site_info.get("name")
+        url = site_info.get("url")
         site_cookie = site_info.get("cookie")
         ua = site_info.get("ua")
-        proxies = settings.PROXY if site_info.get("proxy") else None
+        proxy = site_info.get("proxy")
         timeout = site_info.get("timeout")
+
+        self._signin_url = urljoin(url, self._signin_path)
+        logger.info(f"开始签到 {site}，地址：{self._signin_url}")
 
         # 尝试解决瓷器cookie每天签到后过期,只保留hdchina=部分
         cookie = ""
@@ -60,9 +65,9 @@ class HDChina(_ISiteSigninHandler):
         # 获取页面html
         html_res = RequestUtils(cookies=site_cookie,
                                 ua=ua,
-                                proxies=proxies,
+                                proxies=settings.PROXY if proxy else None,
                                 timeout=timeout
-                                ).get_res(url="https://hdchina.org/index.php")
+                                ).get_res(url=url)
         if not html_res or html_res.status_code != 200:
             logger.warning(f"{site} 签到失败，请检查站点连通性")
             return False, '签到失败，请检查站点连通性'
@@ -101,9 +106,9 @@ class HDChina(_ISiteSigninHandler):
         }
         sign_res = RequestUtils(cookies=site_cookie,
                                 ua=ua,
-                                proxies=proxies,
+                                proxies=settings.PROXY if proxy else None,
                                 timeout=timeout
-                                ).post_res(url="https://hdchina.org/plugin_sign-in.php?cmd=signin", data=data)
+                                ).post_res(url=self._signin_url, data=data)
         if not sign_res or sign_res.status_code != 200:
             logger.warning(f"{site} 签到失败，签到接口请求失败")
             return False, '签到失败，签到接口请求失败'

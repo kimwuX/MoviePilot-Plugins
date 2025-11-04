@@ -3,6 +3,7 @@ import os
 import time
 from io import BytesIO
 from typing import Tuple
+from urllib.parse import urljoin
 
 from PIL import Image
 from lxml import etree
@@ -19,17 +20,15 @@ class Tjupt(_ISiteSigninHandler):
     """
     北洋签到
     """
-    # 匹配的站点Url，每一个实现类都需要设置为自己的站点Url
-    site_url = "tjupt.org"
-
-    # 签到地址
-    _sign_in_url = 'https://www.tjupt.org/attendance.php'
 
     # 已签到
     _sign_regex = ['<a href="attendance.php">今日已签到</a>']
-
     # 签到成功
     _succeed_regex = [r'本次签到获得\s*<b>\d+<\/b>\s*个魔力值']
+
+    _signin_path = "/attendance.php"
+    # 签到地址
+    _signin_url = "https://www.tjupt.org/attendance.php"
 
     # 存储答案的文件
     _answer_file = None
@@ -38,14 +37,12 @@ class Tjupt(_ISiteSigninHandler):
         self._answer_file = self.get_data_path("tjupt.json")
         logger.debug(f"答案文件路径：{self._answer_file}")
 
-    @classmethod
-    def match(cls, url: str) -> bool:
+    @staticmethod
+    def get_netloc():
         """
-        根据站点Url判断是否匹配当前站点签到类，大部分情况使用默认实现即可
-        :param url: 站点Url
-        :return: 是否匹配，如匹配则会调用该类的signin方法
+        获取当前站点域名，可以是单个或者多个域名
         """
-        return True if StringUtils.url_equal(url, cls.site_url) else False
+        return "www.tjupt.org"
 
     def signin(self, site_info: CommentedMap) -> Tuple[bool, str]:
         """
@@ -54,6 +51,7 @@ class Tjupt(_ISiteSigninHandler):
         :return: 签到结果信息
         """
         site = site_info.get("name")
+        url = site_info.get("url")
         site_cookie = site_info.get("cookie")
         # ua = site_info.get("ua")
         ua = settings.NORMAL_USER_AGENT
@@ -61,8 +59,11 @@ class Tjupt(_ISiteSigninHandler):
         render = site_info.get("render")
         timeout = site_info.get("timeout")
 
+        self._signin_url = urljoin(url, self._signin_path)
+        logger.info(f"开始签到 {site}，地址：{self._signin_url}")
+
         # 获取北洋签到页面html
-        html_text = self.get_page_source(url=self._sign_in_url,
+        html_text = self.get_page_source(url=self._signin_url,
                                          cookie=site_cookie,
                                          ua=ua,
                                          proxy=proxy,
@@ -97,7 +98,7 @@ class Tjupt(_ISiteSigninHandler):
 
         # 签到图片
         img_name = img_url.split('/').pop()
-        img_url = "https://www.tjupt.org" + img_url
+        img_url = urljoin(url, img_url)
         logger.info(f"{site} 获取到签到图片 {img_url}")
 
         # 签到答案选项
@@ -142,7 +143,8 @@ class Tjupt(_ISiteSigninHandler):
         # 获取签到图片hash
         captcha_img_res = RequestUtils(cookies=site_cookie,
                                        ua=ua,
-                                       proxies=settings.PROXY if proxy else None
+                                       proxies=settings.PROXY if proxy else None,
+                                       timeout=timeout
                                        ).get_res(url=img_url)
         if not captcha_img_res or captcha_img_res.status_code != 200:
             logger.warning(f"{site} 签到图片 {img_url} 请求失败")
@@ -225,10 +227,10 @@ class Tjupt(_ISiteSigninHandler):
         }
         logger.debug(f"{site} 签到请求参数：{data}")
         sign_res = RequestUtils(cookies=site_cookie,
-                                   ua=ua,
-                                   proxies=settings.PROXY if proxy else None,
-                                   timeout=timeout
-                                   ).post_res(url=self._sign_in_url, data=data)
+                                ua=ua,
+                                proxies=settings.PROXY if proxy else None,
+                                timeout=timeout
+                                ).post_res(url=self._signin_url, data=data)
         if not sign_res or sign_res.status_code != 200:
             logger.warning(f"{site} 签到失败，签到接口请求失败")
             return False, '签到失败，签到接口请求失败'

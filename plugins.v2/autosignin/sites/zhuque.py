@@ -1,5 +1,6 @@
 import json
 from typing import Tuple
+from urllib.parse import urljoin
 
 from lxml import etree
 from ruamel.yaml import CommentedMap
@@ -15,17 +16,17 @@ class ZhuQue(_ISiteSigninHandler):
     """
     ZHUQUE签到
     """
-    # 匹配的站点Url，每一个实现类都需要设置为自己的站点Url
-    site_url = "zhuque.in"
 
-    @classmethod
-    def match(cls, url: str) -> bool:
+    _signin_path = "/api/gaming/fireGenshinCharacterMagic"
+    # 签到地址
+    _signin_url = "https://zhuque.in/api/gaming/fireGenshinCharacterMagic"
+
+    @staticmethod
+    def get_netloc():
         """
-        根据站点Url判断是否匹配当前站点签到类，大部分情况使用默认实现即可
-        :param url: 站点Url
-        :return: 是否匹配，如匹配则会调用该类的signin方法
+        获取当前站点域名，可以是单个或者多个域名
         """
-        return True if StringUtils.url_equal(url, cls.site_url) else False
+        return "zhuque.in"
 
     def signin(self, site_info: CommentedMap) -> Tuple[bool, str]:
         """
@@ -34,14 +35,18 @@ class ZhuQue(_ISiteSigninHandler):
         :return: 签到结果信息
         """
         site = site_info.get("name")
+        url = site_info.get("url")
         site_cookie = site_info.get("cookie")
         ua = site_info.get("ua")
         proxy = site_info.get("proxy")
         render = site_info.get("render")
         timeout = site_info.get("timeout")
 
+        self._signin_url = urljoin(url, self._signin_path)
+        logger.info(f"开始模拟登录 {site}，地址：{self._signin_url}")
+
         # 获取页面html
-        html_text = self.get_page_source(url="https://zhuque.in",
+        html_text = self.get_page_source(url=url,
                                          cookie=site_cookie,
                                          ua=ua,
                                          proxy=proxy,
@@ -73,11 +78,11 @@ class ZhuQue(_ISiteSigninHandler):
                 "Content-Type": "application/json; charset=utf-8",
                 "User-Agent": ua
             }
-            skill_res = RequestUtils(cookies=site_cookie,
-                                     headers=headers,
+            skill_res = RequestUtils(headers=headers,
+                                     cookies=site_cookie,
                                      proxies=settings.PROXY if proxy else None,
                                      timeout=timeout
-                                     ).post_res(url="https://zhuque.in/api/gaming/fireGenshinCharacterMagic", json=data)
+                                     ).post_res(url=self._signin_url, json=data)
             if not skill_res or skill_res.status_code != 200:
                 logger.warning(f"模拟登录失败，释放技能失败")
 
