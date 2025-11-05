@@ -8,7 +8,6 @@ from app.core.config import settings
 from app.log import logger
 from app.plugins.autosignin.sites import _ISiteSigninHandler
 from app.utils.http import RequestUtils
-from app.utils.string import StringUtils
 
 
 class Hares(_ISiteSigninHandler):
@@ -18,10 +17,6 @@ class Hares(_ISiteSigninHandler):
 
     # 已签到
     _sign_text = '已签到'
-
-    _signin_path = "/attendance.php?action=sign"
-    # 签到地址
-    _signin_url = "https://club.hares.top/attendance.php?action=sign"
 
     @staticmethod
     def get_netloc():
@@ -44,8 +39,8 @@ class Hares(_ISiteSigninHandler):
         render = site_info.get("render")
         timeout = site_info.get("timeout")
 
-        self._signin_url = urljoin(url, self._signin_path)
-        logger.info(f"开始签到 {site}，地址：{self._signin_url}")
+        logger.info(f"开始以 {self.__class__.__name__} 模型签到 {site}")
+        signin_url = urljoin(url, "/attendance.php?action=sign")
 
         # 获取页面html
         html_text = self.get_page_source(url=url,
@@ -75,7 +70,7 @@ class Hares(_ISiteSigninHandler):
                                 cookies=site_cookie,
                                 proxies=settings.PROXY if proxy else None,
                                 timeout=timeout
-                                ).get_res(url=self._signin_url)
+                                ).get_res(url=signin_url)
         if not sign_res or sign_res.status_code != 200:
             logger.warning(f"{site} 签到失败，签到接口请求失败")
             return False, '签到失败，签到接口请求失败'

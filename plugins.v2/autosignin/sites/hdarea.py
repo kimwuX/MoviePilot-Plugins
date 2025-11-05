@@ -7,7 +7,6 @@ from app.core.config import settings
 from app.log import logger
 from app.plugins.autosignin.sites import _ISiteSigninHandler
 from app.utils.http import RequestUtils
-from app.utils.string import StringUtils
 
 
 class HDArea(_ISiteSigninHandler):
@@ -19,10 +18,6 @@ class HDArea(_ISiteSigninHandler):
     _success_text = "此次签到您获得"
     # 请不要重复签到哦！
     _repeat_text = "请不要重复签到哦"
-
-    _signin_path = "/sign_in.php"
-    # 签到地址
-    _signin_url = "https://hdarea.club/sign_in.php"
 
     @staticmethod
     def get_netloc():
@@ -44,8 +39,8 @@ class HDArea(_ISiteSigninHandler):
         proxy = site_info.get("proxy")
         timeout = site_info.get("timeout")
 
-        self._signin_url = urljoin(url, self._signin_path)
-        logger.info(f"开始签到 {site}，地址：{self._signin_url}")
+        logger.info(f"开始以 {self.__class__.__name__} 模型签到 {site}")
+        signin_url = urljoin(url, "/sign_in.php")
 
         # 获取页面html
         data = {
@@ -55,7 +50,7 @@ class HDArea(_ISiteSigninHandler):
                                 ua=ua,
                                 proxies=settings.PROXY if proxy else None,
                                 timeout=timeout
-                                ).post_res(url=self._signin_url, data=data)
+                                ).post_res(url=signin_url, data=data)
         if not html_res or html_res.status_code != 200:
             logger.warning(f"{site} 签到失败，请检查站点连通性")
             return False, '签到失败，请检查站点连通性'

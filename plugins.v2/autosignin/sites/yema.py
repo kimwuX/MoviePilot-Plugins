@@ -14,14 +14,6 @@ class YemaPT(_ISiteSigninHandler):
     YemaPT 签到
     """
 
-    _signin_path = "/api/consumer/checkIn"
-    # 签到地址
-    _signin_url = "https://yemapt.org/api/consumer/checkIn"
-
-    _login_path = "/api/user/profile"
-    # 签到地址
-    _login_url = "https://yemapt.org/api/user/profile"
-
     @staticmethod
     def get_netloc():
         """
@@ -43,8 +35,8 @@ class YemaPT(_ISiteSigninHandler):
         render = site_info.get("render")
         timeout = site_info.get("timeout")
 
-        self._signin_url = urljoin(url, self._signin_path)
-        logger.info(f"开始签到 {site}，地址：{self._signin_url}")
+        logger.info(f"开始以 {self.__class__.__name__} 模型签到 {site}")
+        signin_url = urljoin(url, "/api/consumer/checkIn")
 
         headers = {
             "Content-Type": "application/json",
@@ -57,7 +49,7 @@ class YemaPT(_ISiteSigninHandler):
                            proxies=settings.PROXY if proxy else None,
                            timeout=timeout,
                            referer=url
-                           ).get_res(self._signin_url)
+                           ).get_res(signin_url)
 
         if res and res.json().get("success"):
             return True, "签到成功"
@@ -80,8 +72,8 @@ class YemaPT(_ISiteSigninHandler):
         render = site_info.get("render")
         timeout = site_info.get("timeout")
 
-        self._login_url = urljoin(url, self._login_path)
-        logger.info(f"开始模拟登录 {site}，地址：{self._login_url}")
+        logger.info(f"开始以 {self.__class__.__name__} 模型模拟登录 {site}")
+        login_url = urljoin(url, "/api/user/profile")
 
         headers = {
             "Content-Type": "application/json",
@@ -94,7 +86,7 @@ class YemaPT(_ISiteSigninHandler):
                            proxies=settings.PROXY if proxy else None,
                            timeout=timeout,
                            referer=url
-                           ).get_res(self._login_url)
+                           ).get_res(login_url)
 
         if res and res.json().get("success"):
             return True, "模拟登录成功"

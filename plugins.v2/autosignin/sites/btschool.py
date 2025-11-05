@@ -6,7 +6,6 @@ from ruamel.yaml import CommentedMap
 from app.helper.cloudflare import under_challenge
 from app.log import logger
 from app.plugins.autosignin.sites import _ISiteSigninHandler
-from app.utils.string import StringUtils
 
 
 class BTSchool(_ISiteSigninHandler):
@@ -16,10 +15,6 @@ class BTSchool(_ISiteSigninHandler):
 
     # 已签到
     _sign_text = '每日签到'
-
-    _signin_path = "/index.php?action=addbonus"
-    # 签到地址
-    _signin_url = "https://pt.btschool.club/index.php?action=addbonus"
 
     @staticmethod
     def get_netloc():
@@ -42,8 +37,8 @@ class BTSchool(_ISiteSigninHandler):
         render = site_info.get("render")
         timeout = site_info.get("timeout")
 
-        self._signin_url = urljoin(url, self._signin_path)
-        logger.info(f"开始签到 {site}，地址：{self._signin_url}")
+        logger.info(f"开始以 {self.__class__.__name__} 模型签到 {site}")
+        signin_url = urljoin(url, "/index.php?action=addbonus")
 
         # 判断今日是否已签到
         html_text = self.get_page_source(url=url,
@@ -57,20 +52,20 @@ class BTSchool(_ISiteSigninHandler):
             logger.warning(f"{site} 签到失败，请检查站点连通性")
             return False, '签到失败，请检查站点连通性'
 
-        if under_challenge(html_text):
-            logger.warning(f"{site} 签到失败，无法绕过Cloudflare检测")
-            return False, '签到失败，无法绕过Cloudflare检测'
-
         if "login.php" in html_text:
             logger.warning(f"{site} 签到失败，Cookie已失效")
             return False, '签到失败，Cookie已失效'
+
+        if under_challenge(html_text):
+            logger.warning(f"{site} 签到失败，无法绕过Cloudflare检测")
+            return False, '签到失败，无法绕过Cloudflare检测'
 
         # 已签到
         if self._sign_text not in html_text:
             logger.info(f"{site} 今日已签到")
             return True, '今日已签到'
 
-        html_text = self.get_page_source(url=self._signin_url,
+        html_text = self.get_page_source(url=signin_url,
                                          cookie=site_cookie,
                                          ua=ua,
                                          proxy=proxy,
@@ -89,3 +84,6 @@ class BTSchool(_ISiteSigninHandler):
         if self._sign_text not in html_text:
             logger.info(f"{site} 签到成功")
             return True, '签到成功'
+
+        logger.warning(f"{site} 签到失败，接口返回：\n{html_text}")
+        return False, '签到失败，请查看日志'

@@ -21,22 +21,28 @@ class _ISiteSigninHandler(metaclass=ABCMeta):
     """
 
     @classmethod
-    def match(self, url: str) -> bool:
+    def match_url(self, url: str) -> bool:
         """
-        根据站点Url判断是否匹配当前站点签到类，大部分情况使用默认实现即可
+        根据站点Url判断是否匹配当前站点签到类
         :param url: 站点Url
         :return: 是否匹配，如匹配则会调用该类的signin方法
         """
         netloc = self.get_netloc()
         if isinstance(netloc, list):
-            logger.info(f'_ISiteSigninHandler::match: {netloc} {url} {any(StringUtils.url_equal(url, s) for s in netloc)}')
             return any(StringUtils.url_equal(url, s) for s in netloc)
         elif isinstance(netloc, str):
-            logger.info(f'_ISiteSigninHandler::match: {netloc} {url} {StringUtils.url_equal(url, netloc)}')
             return StringUtils.url_equal(url, netloc)
         else:
-            logger.info(f'_ISiteSigninHandler::match: {netloc} {url} xxxxxx')
             return False
+
+    @classmethod
+    def match_schema(self, schema: str) -> bool:
+        """
+        根据站点Schema判断是否匹配当前站点签到类
+        :param schema: 站点Schema
+        :return: 是否匹配，如匹配则会调用该类的signin方法
+        """
+        return schema and schema.lower() == self.get_schema()
 
     @abstractmethod
     def signin(self, site_info: CommentedMap) -> Tuple[bool, str]:
@@ -48,10 +54,16 @@ class _ISiteSigninHandler(metaclass=ABCMeta):
         pass
 
     @staticmethod
-    @abstractmethod
     def get_netloc() -> Tuple[str, list]:
         """
         获取当前站点域名，可以是单个或者多个域名
+        """
+        pass
+
+    @staticmethod
+    def get_schema() -> str:
+        """
+        获取当前站点模型，只有通用模型需要返回值
         """
         pass
 

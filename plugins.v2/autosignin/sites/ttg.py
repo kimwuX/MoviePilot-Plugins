@@ -8,7 +8,6 @@ from app.core.config import settings
 from app.log import logger
 from app.plugins.autosignin.sites import _ISiteSigninHandler
 from app.utils.http import RequestUtils
-from app.utils.string import StringUtils
 
 
 class TTG(_ISiteSigninHandler):
@@ -21,10 +20,6 @@ class TTG(_ISiteSigninHandler):
     _sign_text = '亲，您今天已签到过，不要太贪哦'
     # 签到成功
     _success_text = '您已连续签到'
-
-    _signin_path = "/signed.php"
-    # 签到地址
-    _signin_url = "https://totheglory.im/signed.php"
 
     @staticmethod
     def get_netloc():
@@ -47,8 +42,8 @@ class TTG(_ISiteSigninHandler):
         render = site_info.get("render")
         timeout = site_info.get("timeout")
 
-        self._signin_url = urljoin(url, self._signin_path)
-        logger.info(f"开始签到 {site}，地址：{self._signin_url}")
+        logger.info(f"开始以 {self.__class__.__name__} 模型签到 {site}")
+        signin_url = urljoin(url, "/signed.php")
 
         # 获取页面html
         html_text = self.get_page_source(url=url,
@@ -61,7 +56,7 @@ class TTG(_ISiteSigninHandler):
             logger.warning(f"{site} 签到失败，请检查站点连通性")
             return False, '签到失败，请检查站点连通性'
 
-        if "login.php" in html_text:
+        if "takelogin.php" in html_text:
             logger.warning(f"{site} 签到失败，Cookie已失效")
             return False, '签到失败，Cookie已失效'
 
@@ -86,7 +81,7 @@ class TTG(_ISiteSigninHandler):
                                 ua=ua,
                                 proxies=settings.PROXY if proxy else None,
                                 timeout=timeout
-                                ).post_res(url=self._signin_url, data=data)
+                                ).post_res(url=signin_url, data=data)
         if not sign_res or sign_res.status_code != 200:
             logger.warning(f"{site} 签到失败，签到接口请求失败")
             return False, '签到失败，签到接口请求失败'

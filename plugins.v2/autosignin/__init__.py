@@ -37,7 +37,7 @@ class AutoSignIn(_PluginBase):
     # 插件图标
     plugin_icon = "signin.png"
     # 插件版本
-    plugin_version = "2.7.0.15"
+    plugin_version = "2.7.0.16"
     # 插件作者
     plugin_author = "thsrite"
     # 作者主页
@@ -106,8 +106,10 @@ class AutoSignIn(_PluginBase):
 
         if self._enabled or self._onlyonce:
             # 加载模块
-            self._site_schema = ModuleHelper.load('app.plugins.autosignin.sites',
-                                                  filter_func=lambda _, obj: hasattr(obj, 'match'))
+            self._site_schema = ModuleHelper.load(
+                package_path='app.plugins.autosignin.sites',
+                filter_func=lambda _, obj: hasattr(obj, 'match_url') and hasattr(obj, 'match_schema')
+            )
 
             # 立即运行一次
             if self._onlyonce:
@@ -1534,13 +1536,27 @@ class AutoSignIn(_PluginBase):
         # 保存配置
         self.__update_config()
 
-    def __build_class(self, url) -> Any:
-        for site_schema in self._site_schema:
-            try:
-                if site_schema.match(url):
-                    return site_schema
-            except Exception as e:
-                logger.error("站点模块加载失败：%s" % str(e))
+    def __build_class(self, site_info: CommentedMap, attr: str) -> Any:
+        try:
+            res = None
+            url = site_info.get("url")
+            for site_schema in self._site_schema:
+                if site_schema.match_url(url):
+                    res = site_schema
+                    break
+            if res and hasattr(res, attr):
+                return res
+
+            res = None
+            schema = site_info.get("schema")
+            for site_schema in self._site_schema:
+                if site_schema.match_schema(schema):
+                    res = site_schema
+                    break
+            if res and hasattr(res, attr):
+                return res
+        except Exception as e:
+            logger.error("站点模块加载失败：%s" % str(e))
         return None
 
     def signin_by_domain(self, url: str, apikey: str) -> schemas.Response:
@@ -1568,17 +1584,19 @@ class AutoSignIn(_PluginBase):
         """
         签到一个站点
         """
-        site_module = self.__build_class(site_info.get("url"))
+        site_module = self.__build_class(site_info, "signin")
         # 开始记时
         start_time = datetime.now()
-        if site_module and hasattr(site_module, "signin"):
-            try:
+        try:
+            if site_module:
                 state, message = site_module().signin(site_info)
-            except Exception as e:
-                traceback.print_exc()
-                state, message = False, f"签到失败：{str(e)}"
-        else:
-            state, message = AutoSignIn.__signin_base(site_info)
+            else:
+                logger.warning(f"{site_info.get("name")} 签到失败，不支持该站点")
+                state, message = False, '签到失败，不支持该站点'
+        except Exception as e:
+            traceback.print_exc()
+            logger.warning(f"{site_info.get("name")} 签到失败，错误信息：\n{str(e)}")
+            state, message = False, '签到失败，未知错误'
         # 统计
         seconds = (datetime.now() - start_time).seconds
         domain = StringUtils.get_url_domain(site_info.get('url'))
@@ -1587,124 +1605,24 @@ class AutoSignIn(_PluginBase):
         # else:
         #     self.siteoper.fail(domain)
         return site_info.get("name"), message
-
-    @staticmethod
-    def __signin_base(site_info: CommentedMap) -> Tuple[bool, str]:
-        """
-        通用签到处理
-        :param site_info: 站点信息
-        :return: 签到结果信息
-        """
-        if not site_info:
-            return False, ""
-        site = site_info.get("name")
-        site_url = site_info.get("url")
-        site_cookie = site_info.get("cookie")
-        ua = site_info.get("ua")
-        render = site_info.get("render")
-        proxy = site_info.get("proxy")
-        timeout = site_info.get("timeout")
-        if not site_url or not site_cookie:
-            logger.warning(f"未配置 {site} 的站点地址或Cookie，无法签到")
-            return False, ""
-
-        # cloudflare challenge
-        re_cf = [r'cf-turnstile']
-
-        # safeline firewall
-        re_sl = [r'slg-title', r'slg-box', r'sl-box']
-
-        # other chanllenges
-        re_ch = [r'dragContainer', r'dragBg', r'dragText', r'dragHandler']
-
-        # 已签到
-        # 您今天已经签到过了，请勿重复刷新。
-        re_signed = [r'您今天已经签到过了，请勿重复刷新']
-
-        # 签到成功
-        # 这是您的第233次签到，已连续签到233天，本次签到获得1000个憨豆。
-        # 这是您的第 <b>233</b> 次签到，已连续签到 <b>233</b> 天，本次签到获得 <b>233</b> 个啤酒瓶。
-        # 這是您的第 <b>233</b> 次簽到，已連續簽到 <b>233</b> 天，本次簽到獲得 <b>233</b> 個魔力值。
-        re_success = [r'连续签到\s*\S*?\d+\S*?\s*天，本次签到获得',
-                      r'連續簽到\s*\S*?\d+\S*?\s*天，本次簽到獲得']
-
-        # 模拟签到
-        try:
-            # 签到地址
-            checkin_url = urljoin(site_url, "/attendance.php")
-            logger.info(f"开始签到 {site}，地址：{checkin_url}")
-            html_text = AutoSignIn.get_page_source(url=checkin_url,
-                                            cookie=site_cookie,
-                                            ua=ua,
-                                            proxy=proxy,
-                                            render=render,
-                                            timeout=timeout)
-
-            if not html_text:
-                logger.warning(f"{site} 签到失败，请检查站点连通性")
-                return False, '签到失败，请检查站点连通性'
-
-            if under_challenge(html_text):
-                logger.warning(f"{site} 签到失败，无法绕过Cloudflare检测")
-                return False, '签到失败，无法绕过Cloudflare检测'
-
-            for regex in re_sl:
-                if re.search(regex, html_text):
-                    logger.warning(f"{site} 签到失败，无法绕过雷池检测")
-                    return False, '签到失败，无法绕过雷池检测'
-
-            for regex in re_ch:
-                if re.search(regex, html_text):
-                    logger.warning(f"{site} 签到失败，无法通过验证")
-                    return False, '签到失败，无法通过验证'
-
-            if not SiteUtils.is_logged_in(html_text):
-                logger.warning(f"{site} 签到失败，Cookie已失效")
-                return False, '签到失败，Cookie已失效'
-
-            for regex in re_cf:
-                if re.search(regex, html_text):
-                    logger.warning(f"{site} 签到失败，签到页面已被Cloudflare防护")
-                    return False, '签到失败，签到页面已被Cloudflare防护'
-
-            if "take2fa.php" in html_text:
-                logger.warning(f"{site} 签到失败，两步验证拦截")
-                return False, '签到失败，两步验证拦截'
-
-            # 已签到
-            for regex in re_signed:
-                if re.search(regex, html_text):
-                    logger.info(f"{site} 今日已签到")
-                    return True, '今日已签到'
-
-            # 签到成功
-            for regex in re_success:
-                if re.search(regex, html_text):
-                    logger.info(f"{site} 签到成功")
-                    return True, '签到成功'
-
-            logger.warning(f"{site} 签到失败，接口返回：\n{html_text}")
-            return False, '签到失败，请查看日志'
-        except Exception as e:
-            traceback.print_exc()
-            logger.warning(f"{site} 签到失败，错误信息：\n{str(e)}")
-            return False, '签到失败，未知错误'
 
     def login_site(self, site_info: CommentedMap) -> Tuple[str, str]:
         """
         模拟登录一个站点
         """
-        site_module = self.__build_class(site_info.get("url"))
+        site_module = self.__build_class(site_info, "login")
         # 开始记时
         start_time = datetime.now()
-        if site_module and hasattr(site_module, "login"):
-            try:
+        try:
+            if site_module:
                 state, message = site_module().login(site_info)
-            except Exception as e:
-                traceback.print_exc()
-                state, message = False, f"模拟登录失败：{str(e)}"
-        else:
-            state, message = AutoSignIn.__login_base(site_info)
+            else:
+                logger.warning(f"{site_info.get("name")} 模拟登录失败，不支持该站点")
+                state, message = False, '模拟登录失败，不支持该站点'
+        except Exception as e:
+            traceback.print_exc()
+            logger.warning(f"{site_info.get("name")} 模拟登录失败，错误信息：\n{str(e)}")
+            state, message = False, '模拟登录失败，未知错误'
         # 统计
         seconds = (datetime.now() - start_time).seconds
         domain = StringUtils.get_url_domain(site_info.get('url'))
@@ -1713,118 +1631,6 @@ class AutoSignIn(_PluginBase):
         # else:
         #     self.siteoper.fail(domain)
         return site_info.get("name"), message
-
-    @staticmethod
-    def __login_base(site_info: CommentedMap) -> Tuple[bool, str]:
-        """
-        模拟登录通用处理
-        :param site_info: 站点信息
-        :return: 模拟登录结果信息
-        """
-        if not site_info:
-            return False, ""
-        site = site_info.get("name")
-        site_url = site_info.get("url")
-        site_cookie = site_info.get("cookie")
-        ua = site_info.get("ua")
-        render = site_info.get("render")
-        proxy = site_info.get("proxy")
-        timeout = site_info.get("timeout")
-        if not site_url or not site_cookie:
-            logger.warning(f"未配置 {site} 的站点地址或Cookie，无法模拟登录")
-            return False, ""
-
-        # safeline firewall
-        re_sl = [r'slg-title', r'slg-box', r'sl-box']
-
-        # 模拟登录
-        try:
-            logger.info(f"开始模拟登录 {site}，地址：{site_url}")
-            html_text = AutoSignIn.get_page_source(url=site_url,
-                                            cookie=site_cookie,
-                                            ua=ua,
-                                            proxy=proxy,
-                                            render=render,
-                                            timeout=timeout)
-
-            if not html_text:
-                logger.warning(f"{site} 模拟登录失败，请检查站点连通性")
-                return False, '模拟登录失败，请检查站点连通性'
-
-            if under_challenge(html_text):
-                logger.warning(f"{site} 模拟登录失败，无法绕过Cloudflare检测")
-                return False, '模拟登录失败，无法绕过Cloudflare检测'
-
-            for regex in re_sl:
-                if re.search(regex, html_text):
-                    logger.warning(f"{site} 模拟登录失败，无法绕过雷池检测")
-                    return False, '模拟登录失败，无法绕过雷池检测'
-
-            if not SiteUtils.is_logged_in(html_text):
-                logger.warning(f"{site} 模拟登录失败，Cookie已失效")
-                return False, '模拟登录失败，Cookie已失效'
-
-            logger.info(f"{site} 模拟登录成功")
-            return True, '模拟登录成功'
-        except Exception as e:
-            traceback.print_exc()
-            logger.warning(f"{site} 模拟登录失败，错误信息：\n{str(e)}")
-            return False, '模拟登录失败，未知错误'
-
-    @staticmethod
-    def get_page_source(url: str, cookie: str, ua: str, proxy: bool, render: bool,
-                        token: str = None, timeout: int = None) -> str:
-        """
-        获取页面源码
-        :param url: Url地址
-        :param cookie: Cookie
-        :param ua: UA
-        :param proxy: 是否使用代理
-        :param render: 是否渲染
-        :param token: JWT Token
-        :param timeout: 请求超时时间，单位秒
-        :return: 页面源码，错误信息
-        """
-        if render:
-            return PlaywrightHelper().get_page_source(url=url,
-                                                      cookies=cookie,
-                                                      ua=ua,
-                                                      proxies=settings.PROXY_SERVER if proxy else None,
-                                                      timeout=timeout or 60)
-        else:
-            if token:
-                headers = {
-                    "Authorization": token,
-                    "User-Agent": ua
-                }
-            else:
-                headers = {
-                    "User-Agent": ua,
-                    "Cookie": cookie
-                }
-            req = RequestUtils(headers=headers,
-                               proxies=settings.PROXY if proxy else None,
-                               timeout=timeout or 20
-                               ).get_res(url=url, allow_redirects=False)
-            while req and req.status_code in [301, 302] and req.headers['Location']:
-                logger.info(f"重定向 {url} -> {req.headers['Location']}")
-                url = urljoin(url, req.headers['Location'])
-                req = RequestUtils(headers=headers,
-                                   proxies=settings.PROXY if proxy else None,
-                                   timeout=timeout or 20
-                                   ).get_res(url=url, allow_redirects=False)
-            if req is not None:
-                # 使用chardet检测字符编码
-                raw_data = req.content
-                if raw_data:
-                    try:
-                        return raw_data.decode()
-                    except Exception as e:
-                        logger.error(f"{url} 页面解码失败：{str(e)}")
-                        return req.text
-                else:
-                    return req.text
-            return ""
 
     def stop_service(self):
         """
@@ -1869,64 +1675,3 @@ class AutoSignIn(_PluginBase):
                 self._enabled = False
 
         return do_sites
-
-
-def record_to_row(record):
-    """辅助函数：将记录转换为表格行"""
-    status = record.get("status", "")
-
-    # 确定状态图标和颜色
-    icon = "mdi-check-circle"
-    color = "success"
-
-    if "失败" in status or "错误" in status:
-        icon = "mdi-alert-circle"
-        color = "error"
-    elif "Cookie已失效" in status:
-        icon = "mdi-cookie-off"
-        color = "error"
-    elif "已签到" in status:
-        icon = "mdi-check"
-        color = "grey"
-    elif "成功" in status:
-        icon = "mdi-check-circle"
-        color = "success"
-
-    return {
-        'component': 'tr',
-        'props': {
-            'class': 'text-sm'
-        },
-        'content': [
-            {
-                'component': 'td',
-                'props': {
-                    'class': 'text-start'
-                },
-                'text': record.get("date", "")
-            },
-            {
-                'component': 'td',
-                'props': {
-                    'class': 'text-start'
-                },
-                'text': status
-            },
-            {
-                'component': 'td',
-                'props': {
-                    'class': 'text-center'
-                },
-                'content': [
-                    {
-                        'component': 'VIcon',
-                        'props': {
-                            'color': color,
-                            'size': 'small'
-                        },
-                        'text': icon
-                    }
-                ]
-            }
-        ]
-    }

@@ -13,7 +13,6 @@ from app.core.config import settings
 from app.log import logger
 from app.plugins.autosignin.sites import _ISiteSigninHandler
 from app.utils.http import RequestUtils
-from app.utils.string import StringUtils
 
 
 class Tjupt(_ISiteSigninHandler):
@@ -26,9 +25,10 @@ class Tjupt(_ISiteSigninHandler):
     # 签到成功
     _succeed_regex = [r'本次签到获得\s*<b>\d+<\/b>\s*个魔力值']
 
+    # 签到路径
     _signin_path = "/attendance.php"
-    # 签到地址
-    _signin_url = "https://www.tjupt.org/attendance.php"
+    # 豆瓣地址
+    _db_url = "https://movie.douban.com/"
 
     # 存储答案的文件
     _answer_file = None
@@ -59,11 +59,11 @@ class Tjupt(_ISiteSigninHandler):
         render = site_info.get("render")
         timeout = site_info.get("timeout")
 
-        self._signin_url = urljoin(url, self._signin_path)
-        logger.info(f"开始签到 {site}，地址：{self._signin_url}")
+        logger.info(f"开始以 {self.__class__.__name__} 模型签到 {site}")
+        signin_url = urljoin(url, self._signin_path)
 
         # 获取北洋签到页面html
-        html_text = self.get_page_source(url=self._signin_url,
+        html_text = self.get_page_source(url=signin_url,
                                          cookie=site_cookie,
                                          ua=ua,
                                          proxy=proxy,
@@ -131,6 +131,7 @@ class Tjupt(_ISiteSigninHandler):
                         return self.__signin(value=value,
                                              answer=answer,
                                              site=site,
+                                             url=url,
                                              site_cookie=site_cookie,
                                              ua=ua,
                                              proxy=proxy,
@@ -161,7 +162,7 @@ class Tjupt(_ISiteSigninHandler):
 
                 # 豆瓣检索
                 db_res = RequestUtils(ua=settings.NORMAL_USER_AGENT
-                                      ).get_res(url=f'https://movie.douban.com/j/subject_suggest?q={answer}')
+                                      ).get_res(url=f'{self._db_url}j/subject_suggest?q={answer}')
                 logger.debug(f"{site} 豆瓣返回 {answer} {db_res.text}")
                 if not db_res or db_res.status_code != 200:
                     logger.debug(f"{site} 签到选项 {answer} 未查询到豆瓣数据")
@@ -180,7 +181,7 @@ class Tjupt(_ISiteSigninHandler):
                     answer_title = db_answer.get('title')
 
                     # 获取答案hash
-                    answer_img_res = RequestUtils(referer="https://movie.douban.com").get_res(url=answer_img_url)
+                    answer_img_res = RequestUtils(referer=self._db_url).get_res(url=answer_img_url)
                     logger.debug(f"{site} 签到答案图片 {answer_title} {answer_img_url}")
                     if not answer_img_res or answer_img_res.status_code != 200:
                         logger.debug(f"{site} 签到答案 {answer_title} {answer_img_url} 请求失败")
@@ -198,6 +199,7 @@ class Tjupt(_ISiteSigninHandler):
                         return self.__signin(value=value,
                                              answer=answer,
                                              site=site,
+                                             url=url,
                                              site_cookie=site_cookie,
                                              ua=ua,
                                              proxy=proxy,
@@ -212,6 +214,7 @@ class Tjupt(_ISiteSigninHandler):
     def __signin(self, value: str,
                  answer: str,
                  site: str,
+                 url: str,
                  site_cookie: str,
                  ua: str,
                  proxy: bool,
@@ -226,11 +229,12 @@ class Tjupt(_ISiteSigninHandler):
             'submit': '提交'
         }
         logger.debug(f"{site} 签到请求参数：{data}")
+        signin_url = urljoin(url, self._signin_path)
         sign_res = RequestUtils(cookies=site_cookie,
                                 ua=ua,
                                 proxies=settings.PROXY if proxy else None,
                                 timeout=timeout
-                                ).post_res(url=self._signin_url, data=data)
+                                ).post_res(url=signin_url, data=data)
         if not sign_res or sign_res.status_code != 200:
             logger.warning(f"{site} 签到失败，签到接口请求失败")
             return False, '签到失败，签到接口请求失败'

@@ -9,17 +9,12 @@ from app.core.config import settings
 from app.log import logger
 from app.plugins.autosignin.sites import _ISiteSigninHandler
 from app.utils.http import RequestUtils
-from app.utils.string import StringUtils
 
 
 class ZhuQue(_ISiteSigninHandler):
     """
     ZHUQUE签到
     """
-
-    _signin_path = "/api/gaming/fireGenshinCharacterMagic"
-    # 签到地址
-    _signin_url = "https://zhuque.in/api/gaming/fireGenshinCharacterMagic"
 
     @staticmethod
     def get_netloc():
@@ -42,8 +37,8 @@ class ZhuQue(_ISiteSigninHandler):
         render = site_info.get("render")
         timeout = site_info.get("timeout")
 
-        self._signin_url = urljoin(url, self._signin_path)
-        logger.info(f"开始模拟登录 {site}，地址：{self._signin_url}")
+        logger.info(f"开始以 {self.__class__.__name__} 模型模拟登录 {site}")
+        signin_url = urljoin(url, "/api/gaming/fireGenshinCharacterMagic")
 
         # 获取页面html
         html_text = self.get_page_source(url=url,
@@ -82,7 +77,7 @@ class ZhuQue(_ISiteSigninHandler):
                                      cookies=site_cookie,
                                      proxies=settings.PROXY if proxy else None,
                                      timeout=timeout
-                                     ).post_res(url=self._signin_url, json=data)
+                                     ).post_res(url=signin_url, json=data)
             if not skill_res or skill_res.status_code != 200:
                 logger.warning(f"模拟登录失败，释放技能失败")
 

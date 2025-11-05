@@ -5,7 +5,6 @@ from ruamel.yaml import CommentedMap
 
 from app.log import logger
 from app.plugins.autosignin.sites import _ISiteSigninHandler
-from app.utils.string import StringUtils
 
 
 class HDCity(_ISiteSigninHandler):
@@ -17,10 +16,6 @@ class HDCity(_ISiteSigninHandler):
     _sign_regex = ['今天已经签过到', 'Already checked in today']
     # 签到成功
     _succeed_regex = ['本次签到获得魅力', 'Bonus earned today']
-
-    _signin_path = "/sign"
-    # 签到地址
-    _signin_url = "https://hdcity.city/sign"
 
     @staticmethod
     def get_netloc():
@@ -43,11 +38,11 @@ class HDCity(_ISiteSigninHandler):
         render = site_info.get("render")
         timeout = site_info.get("timeout")
 
-        self._signin_url = urljoin(url, self._signin_path)
-        logger.info(f"开始签到 {site}，地址：{self._signin_url}")
+        logger.info(f"开始以 {self.__class__.__name__} 模型签到 {site}")
+        signin_url = urljoin(url, "/sign")
 
         # 获取页面html
-        html_text = self.get_page_source(url=self._signin_url,
+        html_text = self.get_page_source(url=signin_url,
                                          cookie=site_cookie,
                                          ua=ua,
                                          proxy=proxy,

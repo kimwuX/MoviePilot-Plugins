@@ -10,7 +10,6 @@ from app.helper.ocr import OcrHelper
 from app.log import logger
 from app.plugins.autosignin.sites import _ISiteSigninHandler
 from app.utils.http import RequestUtils
-from app.utils.string import StringUtils
 
 
 class HDSky(_ISiteSigninHandler):
@@ -20,10 +19,6 @@ class HDSky(_ISiteSigninHandler):
 
     # 已签到
     _sign_regex = ['已签到']
-
-    _signin_path = "/showup.php"
-    # 签到地址
-    _signin_url = "https://hdsky.me/showup.php"
 
     @staticmethod
     def get_netloc():
@@ -46,8 +41,9 @@ class HDSky(_ISiteSigninHandler):
         render = site_info.get("render")
         timeout = site_info.get("timeout")
 
-        self._signin_url = urljoin(url, self._signin_path)
-        logger.info(f"开始签到 {site}，地址：{self._signin_url}")
+        logger.info(f"开始以 {self.__class__.__name__} 模型签到 {site}")
+        signin_url = urljoin(url, "/showup.php")
+        get_image_url = urljoin(url, "/image_code_ajax.php")
 
         # 判断今日是否已签到
         html_text = self.get_page_source(url=url,
@@ -83,7 +79,7 @@ class HDSky(_ISiteSigninHandler):
                                      referer=url,
                                      content_type='application/x-www-form-urlencoded; charset=UTF-8',
                                      accept_type="*/*"
-                                     ).post_res(url=urljoin(url, "/image_code_ajax.php"),
+                                     ).post_res(url=get_image_url,
                                                 data={'action': 'new'})
             if image_res and image_res.status_code == 200:
                 image_json = json.loads(image_res.text)
@@ -98,8 +94,8 @@ class HDSky(_ISiteSigninHandler):
             return False, '签到失败，获取签到参数失败'
 
         # 完整验证码url
-        img_get_url = urljoin(url, f'/image.php?action=regimage&imagehash={img_hash}')
-        logger.info(f"{site} 验证码链接：{img_get_url}")
+        img_url = urljoin(url, f'/image.php?action=regimage&imagehash={img_hash}')
+        logger.info(f"{site} 验证码链接：{img_url}")
 
         # ocr识别多次，获取6位验证码
         times = 0
@@ -109,7 +105,7 @@ class HDSky(_ISiteSigninHandler):
             if times > 0:
                 logger.warning(f"{site} 验证码识别失败，正在进行第{times}次重试")
             # ocr二维码识别
-            ocr_result = OcrHelper().get_captcha_text(image_url=img_get_url,
+            ocr_result = OcrHelper().get_captcha_text(image_url=img_url,
                                                       cookie=site_cookie,
                                                       ua=ua)
             if ocr_result:
@@ -136,7 +132,7 @@ class HDSky(_ISiteSigninHandler):
                                 proxies=settings.PROXY if proxy else None,
                                 timeout=timeout,
                                 referer=url
-                                ).post_res(url=self._signin_path, data=data)
+                                ).post_res(url=signin_url, data=data)
         if not sign_res or sign_res.status_code != 200:
             logger.warning(f"{site} 签到失败，签到接口请求失败")
             return False, '签到失败，签到接口请求失败'

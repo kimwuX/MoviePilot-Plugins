@@ -9,7 +9,6 @@ from app.core.config import settings
 from app.log import logger
 from app.plugins.autosignin.sites import _ISiteSigninHandler
 from app.utils.http import RequestUtils
-from app.utils.string import StringUtils
 
 
 class HDChina(_ISiteSigninHandler):
@@ -19,10 +18,6 @@ class HDChina(_ISiteSigninHandler):
 
     # 已签到
     _sign_regex = ['<a class="label label-default" href="#">已签到</a>']
-
-    _signin_path = "/plugin_sign-in.php?cmd=signin"
-    # 签到地址
-    _signin_url = "https://hdchina.org/plugin_sign-in.php?cmd=signin"
 
     @staticmethod
     def get_netloc():
@@ -44,8 +39,8 @@ class HDChina(_ISiteSigninHandler):
         proxy = site_info.get("proxy")
         timeout = site_info.get("timeout")
 
-        self._signin_url = urljoin(url, self._signin_path)
-        logger.info(f"开始签到 {site}，地址：{self._signin_url}")
+        logger.info(f"开始以 {self.__class__.__name__} 模型签到 {site}")
+        signin_url = urljoin(url, "/plugin_sign-in.php?cmd=signin")
 
         # 尝试解决瓷器cookie每天签到后过期,只保留hdchina=部分
         cookie = ""
@@ -108,7 +103,7 @@ class HDChina(_ISiteSigninHandler):
                                 ua=ua,
                                 proxies=settings.PROXY if proxy else None,
                                 timeout=timeout
-                                ).post_res(url=self._signin_url, data=data)
+                                ).post_res(url=signin_url, data=data)
         if not sign_res or sign_res.status_code != 200:
             logger.warning(f"{site} 签到失败，签到接口请求失败")
             return False, '签到失败，签到接口请求失败'

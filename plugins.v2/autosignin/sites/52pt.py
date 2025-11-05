@@ -10,7 +10,6 @@ from app.core.config import settings
 from app.log import logger
 from app.plugins.autosignin.sites import _ISiteSigninHandler
 from app.utils.http import RequestUtils
-from app.utils.string import StringUtils
 
 
 class Pt52(_ISiteSigninHandler):
@@ -24,9 +23,8 @@ class Pt52(_ISiteSigninHandler):
     # 连续11天签到,获得28+1+60点魔力值
     _success_regex = [r'连续\d+天签到,获得[\d\+]+点魔力值']
 
+    # 签到路径
     _signin_path = "/bakatest.php"
-    # 签到地址
-    _signin_url = "https://52pt.site/bakatest.php"
 
     # 存储答案的文件
     _answer_file = None
@@ -56,11 +54,11 @@ class Pt52(_ISiteSigninHandler):
         render = site_info.get("render")
         timeout = site_info.get("timeout")
 
-        self._signin_url = urljoin(url, self._signin_path)
-        logger.info(f"开始签到 {site}，地址：{self._signin_url}")
+        logger.info(f"开始以 {self.__class__.__name__} 模型签到 {site}")
+        signin_url = urljoin(url, self._signin_path)
 
         # 判断今日是否已签到
-        html_text = self.get_page_source(url=self._signin_url,
+        html_text = self.get_page_source(url=signin_url,
                                          cookie=site_cookie,
                                          ua=ua,
                                          proxy=proxy,
@@ -108,6 +106,7 @@ class Pt52(_ISiteSigninHandler):
                 return self.__signin(questionid=questionid,
                                      choice=choice,
                                      site=site,
+                                     url=url,
                                      site_cookie=site_cookie,
                                      ua=ua,
                                      proxy=proxy,
@@ -123,6 +122,7 @@ class Pt52(_ISiteSigninHandler):
     def __signin(self, questionid: str,
                  choice: list,
                  site: str,
+                 url: str,
                  site_cookie: str,
                  ua: str,
                  proxy: bool,
@@ -146,11 +146,12 @@ class Pt52(_ISiteSigninHandler):
         }
         logger.debug(f"{site} 签到请求参数：{data}")
 
+        signin_url = urljoin(url, self._signin_path)
         sign_res = RequestUtils(cookies=site_cookie,
                                 ua=ua,
                                 proxies=settings.PROXY if proxy else None,
                                 timeout=timeout
-                                ).post_res(url=self._signin_url, data=data)
+                                ).post_res(url=signin_url, data=data)
         if not sign_res or sign_res.status_code != 200:
             logger.warning(f"{site} 签到失败，签到接口请求失败")
             return False, '签到失败，签到接口请求失败'

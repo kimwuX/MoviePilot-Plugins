@@ -5,7 +5,6 @@ from ruamel.yaml import CommentedMap
 
 from app.log import logger
 from app.plugins.autosignin.sites import _ISiteSigninHandler
-from app.utils.string import StringUtils
 
 
 class HaiDan(_ISiteSigninHandler):
@@ -15,10 +14,6 @@ class HaiDan(_ISiteSigninHandler):
 
     # 签到成功
     _succeed_regex = ['(?<=value=")已经打卡(?=")']
-
-    _signin_path = "/signin.php"
-    # 签到地址
-    _signin_url = "https://www.haidan.video/signin.php"
 
     @staticmethod
     def get_netloc():
@@ -41,11 +36,11 @@ class HaiDan(_ISiteSigninHandler):
         render = site_info.get("render")
         timeout = site_info.get("timeout")
 
-        self._signin_url = urljoin(url, self._signin_path)
-        logger.info(f"开始签到 {site}，地址：{self._signin_url}")
+        logger.info(f"开始以 {self.__class__.__name__} 模型签到 {site}")
+        signin_url = urljoin(url, "/signin.php")
 
         # 签到
-        html_text = self.get_page_source(url=self._signin_url,
+        html_text = self.get_page_source(url=signin_url,
                                          cookie=site_cookie,
                                          ua=ua,
                                          proxy=proxy,

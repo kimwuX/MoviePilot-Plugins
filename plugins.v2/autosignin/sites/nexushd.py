@@ -7,7 +7,6 @@ from app.core.config import settings
 from app.log import logger
 from app.plugins.autosignin.sites import _ISiteSigninHandler
 from app.utils.http import RequestUtils
-from app.utils.string import StringUtils
 
 
 class NexusHD(_ISiteSigninHandler):
@@ -18,10 +17,6 @@ class NexusHD(_ISiteSigninHandler):
     # 签到成功
     _success_text = "本次签到获得"
     _repeat_text = "你今天已经签到过了"
-
-    _signin_path = "/signin.php"
-    # 签到地址
-    _signin_url = "https://v6.nexushd.org/signin.php"
 
     @staticmethod
     def get_netloc():
@@ -43,8 +38,8 @@ class NexusHD(_ISiteSigninHandler):
         proxy = site_info.get("proxy")
         timeout = site_info.get("timeout")
 
-        self._signin_url = urljoin(url, self._signin_path)
-        logger.info(f"开始签到 {site}，地址：{self._signin_url}")
+        logger.info(f"开始以 {self.__class__.__name__} 模型签到 {site}")
+        signin_url = urljoin(url, "/signin.php")
 
         # 获取页面html
         data = {
@@ -55,7 +50,7 @@ class NexusHD(_ISiteSigninHandler):
                                 ua=ua,
                                 proxies=settings.PROXY if proxy else None,
                                 timeout=timeout
-                                ).post_res(url=self._signin_url, data=data)
+                                ).post_res(url=signin_url, data=data)
         if not html_res or html_res.status_code != 200:
             logger.warning(f"{site} 签到失败，请检查站点连通性")
             return False, '签到失败，请检查站点连通性'
