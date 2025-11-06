@@ -13,7 +13,7 @@ from app.plugins.autosignin.sites import _ISiteSigninHandler
 from app.utils.http import RequestUtils
 
 
-class Opencd(_ISiteSigninHandler):
+class OpenCD(_ISiteSigninHandler):
     """
     皇后签到
     """

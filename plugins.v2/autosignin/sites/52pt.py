@@ -12,7 +12,7 @@ from app.plugins.autosignin.sites import _ISiteSigninHandler
 from app.utils.http import RequestUtils
 
 
-class Pt52(_ISiteSigninHandler):
+class PT52(_ISiteSigninHandler):
     """
     52pt签到
     """

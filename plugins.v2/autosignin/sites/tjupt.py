@@ -15,7 +15,7 @@ from app.plugins.autosignin.sites import _ISiteSigninHandler
 from app.utils.http import RequestUtils
 
 
-class Tjupt(_ISiteSigninHandler):
+class TJUPT(_ISiteSigninHandler):
     """
     北洋签到
     """

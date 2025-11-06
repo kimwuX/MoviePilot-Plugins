@@ -8,7 +8,7 @@ from app.log import logger
 from app.plugins.autosignin.sites import _ISiteSigninHandler
 
 
-class HDUpt(_ISiteSigninHandler):
+class HDUPT(_ISiteSigninHandler):
     """
     hdu签到
     """

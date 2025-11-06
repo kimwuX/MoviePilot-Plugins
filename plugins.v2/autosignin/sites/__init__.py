@@ -36,13 +36,19 @@ class _ISiteSigninHandler(metaclass=ABCMeta):
             return False
 
     @classmethod
-    def match_schema(self, schema: str) -> bool:
+    def match_schema(self, value: str) -> bool:
         """
         根据站点Schema判断是否匹配当前站点签到类
-        :param schema: 站点Schema
+        :param value: 站点Schema
         :return: 是否匹配，如匹配则会调用该类的signin方法
         """
-        return schema and schema.lower() == self.get_schema()
+        schema = self.get_schema()
+        if isinstance(schema, list):
+            return value in schema
+        elif isinstance(schema, str):
+            return value == schema
+        else:
+            return False
 
     @abstractmethod
     def signin(self, site_info: CommentedMap) -> Tuple[bool, str]:
@@ -61,7 +67,7 @@ class _ISiteSigninHandler(metaclass=ABCMeta):
         pass
 
     @staticmethod
-    def get_schema() -> str:
+    def get_schema() -> Tuple[str, list]:
         """
         获取当前站点模型，只有通用模型需要返回值
         """
@@ -102,24 +108,20 @@ class _ISiteSigninHandler(metaclass=ABCMeta):
                                proxies=settings.PROXY if proxy else None,
                                timeout=timeout or 20
                                ).get_res(url=url, allow_redirects=False)
-            while req and req.status_code in [301, 302] and req.headers['Location']:
+            while req and req.status_code in (301, 302) and req.headers['Location']:
                 logger.info(f"重定向 {url} -> {req.headers['Location']}")
                 url = urljoin(url, req.headers['Location'])
                 req = RequestUtils(headers=headers,
                                    proxies=settings.PROXY if proxy else None,
                                    timeout=timeout or 20
                                    ).get_res(url=url, allow_redirects=False)
-            if req is not None:
-                # 使用chardet检测字符编码
-                raw_data = req.content
-                if raw_data:
-                    try:
-                        return raw_data.decode()
-                    except Exception as e:
-                        logger.error(f"{url} 页面解码失败：{str(e)}")
-                        return req.text
-                else:
-                    return req.text
+
+            if req is not None and req.status_code in (200, 500, 403):
+                return RequestUtils.get_decoded_html_content(
+                    req,
+                    settings.ENCODING_DETECTION_PERFORMANCE_MODE,
+                    settings.ENCODING_DETECTION_MIN_CONFIDENCE)
+
             return ""
 
     @staticmethod

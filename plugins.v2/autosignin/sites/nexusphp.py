@@ -6,8 +6,8 @@ from ruamel.yaml import CommentedMap
 
 from app.helper.cloudflare import under_challenge
 from app.log import logger
+from app.modules.indexer.parser import SiteSchema
 from app.plugins.autosignin.sites import _ISiteSigninHandler
-from app.utils.site import SiteUtils
 
 
 class NexusPHP(_ISiteSigninHandler):
@@ -39,11 +39,14 @@ class NexusPHP(_ISiteSigninHandler):
                    r'連續簽到\s*\S*?\d+\S*?\s*天，本次簽到獲得']
 
     @staticmethod
-    def get_schema() -> str:
+    def get_schema():
         """
         获取当前站点模型，只有通用模型需要返回值
         """
-        return "nexusphp"
+        return [SiteSchema.NexusPhp.value,
+                SiteSchema.NexusHhanclub.value,
+                SiteSchema.NexusAudiences.value,
+                SiteSchema.HDDolby.value]
 
     def signin(self, site_info: CommentedMap) -> Tuple[bool, str]:
         """
@@ -143,8 +146,9 @@ class NexusPHP(_ISiteSigninHandler):
         timeout = site_info.get("timeout")
 
         logger.info(f"开始以 {self.__class__.__name__} 通用模型模拟登录 {site}")
+        login_url = urljoin(url, "/index.php")
 
-        html_text = self.get_page_source(url=url,
+        html_text = self.get_page_source(url=login_url,
                                          cookie=site_cookie,
                                          ua=ua,
                                          proxy=proxy,

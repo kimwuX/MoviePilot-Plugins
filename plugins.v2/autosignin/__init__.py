@@ -37,7 +37,7 @@ class AutoSignIn(_PluginBase):
     # 插件图标
     plugin_icon = "signin.png"
     # 插件版本
-    plugin_version = "2.7.0.16"
+    plugin_version = "2.7.0.17"
     # 插件作者
     plugin_author = "thsrite"
     # 作者主页
@@ -1591,7 +1591,8 @@ class AutoSignIn(_PluginBase):
             if site_module:
                 state, message = site_module().signin(site_info)
             else:
-                logger.warning(f"{site_info.get("name")} 签到失败，不支持该站点")
+                logger.warning(f"{site_info.get("name")}[{site_info.get("schema")}]"
+                               f" 签到失败，不支持该站点")
                 state, message = False, '签到失败，不支持该站点'
         except Exception as e:
             traceback.print_exc()
@@ -1617,7 +1618,8 @@ class AutoSignIn(_PluginBase):
             if site_module:
                 state, message = site_module().login(site_info)
             else:
-                logger.warning(f"{site_info.get("name")} 模拟登录失败，不支持该站点")
+                logger.warning(f"{site_info.get("name")}[{site_info.get("schema")}]"
+                               f" 模拟登录失败，不支持该站点")
                 state, message = False, '模拟登录失败，不支持该站点'
         except Exception as e:
             traceback.print_exc()
