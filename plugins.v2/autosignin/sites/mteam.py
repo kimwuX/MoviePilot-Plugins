@@ -7,19 +7,23 @@ from app.core.config import settings
 from app.log import logger
 from app.plugins.autosignin.sites import _ISiteSigninHandler
 from app.utils.http import RequestUtils
+from app.utils.string import StringUtils
 
 
-class MTorrent(_ISiteSigninHandler):
+class MTeam(_ISiteSigninHandler):
     """
     m-team签到
     """
 
-    @staticmethod
-    def get_netloc():
-        """
-        获取当前站点域名，可以是单个或者多个域名
-        """
-        return ["api.m-team.cc", "api.m-team.io"]
+    # @classmethod
+    # def match_url(self, url: str) -> bool:
+    #     """
+    #     根据站点Url判断是否匹配当前站点签到类
+    #     :param url: 站点Url
+    #     :return: 是否匹配，如匹配则会调用该类的signin方法
+    #     """
+    #     domain = StringUtils.get_url_domain(url)
+    #     return domain in ["m-team.cc", "m-team.io"]
 
     def signin(self, site_info: CommentedMap) -> Tuple[bool, str]:
         """
@@ -39,32 +43,44 @@ class MTorrent(_ISiteSigninHandler):
         """
         site = site_info.get("name")
         url = site_info.get("url")
-        #site_cookie = site_info.get("cookie")
         ua = site_info.get("ua")
         proxy = site_info.get("proxy")
-        render = site_info.get("render")
         timeout = site_info.get("timeout")
+        apikey = site_info.get("apikey")
         token = site_info.get("token")
+        if not apikey or not token:
+            logger.warning(f"{site} 模拟登录失败，未配置请求头或令牌")
+            return False, '模拟登录失败，未配置请求头或令牌'
 
         logger.info(f"开始以 {self.__class__.__name__} 模型模拟登录 {site}")
-        signin_url = urljoin(url, "/api/member/updateLastBrowse")
+        domain = StringUtils.get_url_domain(url)
+        login_url = f"https://api.{domain}/api/member/updateLastBrowse"
 
         headers = {
-            "Content-Type": "application/json",
-            "User-Agent": ua,
             "Accept": "application/json, text/plain, */*",
+            "User-Agent": ua,
+            "x-api-key": apikey,
             "Authorization": token
         }
-        # domain = StringUtils.get_url_domain(url)
         # 更新最后访问时间
         res = RequestUtils(headers=headers,
                            proxies=settings.PROXY if proxy else None,
-                           timeout=timeout,
-                           referer=urljoin(url, "/index")
-                           ).post_res(url=signin_url)
-        if res:
-            return True, "模拟登录成功"
-        elif res is not None:
-            return False, f"模拟登录失败，状态码：{res.status_code}"
-        else:
-            return False, "模拟登录失败，无法打开网站"
+                           timeout=timeout
+                           ).post_res(url=login_url)
+
+        if res is None:
+            logger.warning(f"{site} 模拟登录失败，请检查站点连通性")
+            return False, "模拟登录失败，请检查站点连通性"
+
+        if res.status_code == 200:
+            info = res.json() or {}
+            code = int(info.get("code", -1))
+            if code == 0:
+                logger.info(f"{site} 模拟登录成功")
+                return True, "模拟登录成功"
+            elif code == 401:
+                logger.warning(f"{site} 模拟登录失败，请求头已过期")
+                return False, "模拟登录失败，请求头已过期"
+
+        logger.warning(f"{site} 模拟登录失败，接口返回：\n{res.text}")
+        return False, '模拟登录失败，请查看日志'

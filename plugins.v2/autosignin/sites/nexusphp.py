@@ -59,7 +59,6 @@ class NexusPHP(_ISiteSigninHandler):
         if not url:
             logger.warning(f"{site} 签到失败，未配置站点地址")
             return False, '签到失败，未配置站点地址'
-
         site_cookie = site_info.get("cookie")
         ua = site_info.get("ua")
         proxy = site_info.get("proxy")
