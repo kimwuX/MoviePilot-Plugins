@@ -37,7 +37,7 @@ class AutoSignIn(_PluginBase):
     # 插件图标
     plugin_icon = "signin.png"
     # 插件版本
-    plugin_version = "2.7.0.18"
+    plugin_version = "2.7.0.19"
     # 插件作者
     plugin_author = "thsrite"
     # 作者主页
@@ -208,10 +208,10 @@ class AutoSignIn(_PluginBase):
                 else:
                     # 随机两次执行时间
                     triggers = TimerUtils.random_scheduler(num_executions=2,
-                                                        begin_hour=9,
-                                                        end_hour=23,
-                                                        max_interval=6 * 60,
-                                                        min_interval=2 * 60)
+                                                           begin_hour=9,
+                                                           end_hour=23,
+                                                           max_interval=6 * 60,
+                                                           min_interval=2 * 60)
                     logger.debug(f"随机时间：{[f"{trigger.hour}时{trigger.minute}分" for trigger in triggers]}")
                     cron_list = [str(triggers[0].minute), str(triggers[0].hour), "*", "*", "*"]
                     for i in range(1, len(triggers)):
@@ -235,10 +235,8 @@ class AutoSignIn(_PluginBase):
         # 站点的可选项（内置站点 + 自定义站点）
         customSites = self.__custom_sites()
 
-        site_options = ([{"title": site.name, "value": site.id}
-                         for site in self.siteoper.list_order_by_pri()]
-                        + [{"title": site.get("name"), "value": site.get("id")}
-                           for site in customSites])
+        site_options = ([{"title": site.name, "value": site.id} for site in self.siteoper.list_order_by_pri()] +
+                        [{"title": site.get("name"), "value": site.get("id")} for site in customSites])
         return [
             {
                 'component': 'VForm',
@@ -780,32 +778,9 @@ class AutoSignIn(_PluginBase):
         signin_panels = []
         for site_name in site_sorted:
             records = signin_site_data.get(site_name)
-            # 获取最新的状态作为站点概要
-            latest_status = records[0].get("status", "未知状态")
-
-            # 确定状态颜色和图标
-            status_color = "orange-lighten-2"
-            status_icon = "mdi-bell-alert-outline"
-
-            if "Cookie已失效" in latest_status:
-                status_color = "pink-lighten-2"
-                status_icon = "mdi-cookie-alert-outline"
-            elif "重试" in latest_status:
-                status_color = "amber-lighten-2"
-                status_icon = "mdi-restart-alert"
-            elif "失败" in latest_status or "错误" in latest_status:
-                status_color = "deep-orange-lighten-2"
-                status_icon = "mdi-alert-circle-outline"
-            elif "已签到" in latest_status:
-                status_color = "blue-lighten-2"
-                status_icon = "mdi-checkbox-marked-circle-plus-outline"
-            elif "成功" in latest_status:
-                status_color = "teal-lighten-2"
-                status_icon = "mdi-checkbox-marked-circle-outline"
-
             # 创建每个站点的折叠面板
             signin_panels.append(
-                self._create_expansion_panel(site_name, records, status_color, status_icon, latest_status))
+                self._create_expansion_panel(site_name, records))
 
         site_success = []
         site_failure = []
@@ -831,32 +806,9 @@ class AutoSignIn(_PluginBase):
         login_panels = []
         for site_name in site_sorted:
             records = login_site_data.get(site_name)
-            # 获取最新的状态作为站点概要
-            latest_status = records[0].get("status", "未知状态")
-
-            # 确定状态颜色和图标
-            status_color = "orange-lighten-2"
-            status_icon = "mdi-bell-alert-outline"
-
-            if "Cookie已失效" in latest_status:
-                status_color = "pink-lighten-2"
-                status_icon = "mdi-cookie-alert-outline"
-            elif "重试" in latest_status:
-                status_color = "amber-lighten-2"
-                status_icon = "mdi-restart-alert"
-            elif "失败" in latest_status or "错误" in latest_status:
-                status_color = "deep-orange-lighten-2"
-                status_icon = "mdi-alert-circle-outline"
-            elif "已登录" in latest_status:
-                status_color = "blue-lighten-2"
-                status_icon = "mdi-checkbox-marked-circle-plus-outline"
-            elif "成功" in latest_status:
-                status_color = "teal-lighten-2"
-                status_icon = "mdi-checkbox-marked-circle-outline"
-
             # 创建每个站点的折叠面板
             login_panels.append(
-                self._create_expansion_panel(site_name, records, status_color, status_icon, latest_status))
+                self._create_expansion_panel(site_name, records))
 
         # 添加样式
         return [
@@ -1193,20 +1145,30 @@ class AutoSignIn(_PluginBase):
             }
         ]
 
-    def _create_expansion_panel(self, site_name, records, status_color, status_icon, latest_status):
+    def _create_expansion_panel(self, site_name, records):
         """创建站点折叠面板"""
         # 生成站点图标（使用站点名的首字母）
         site_initial = site_name[0].upper() if site_name else "?"
+        status_color = None
+        status_icon = None
+        latest_status = None
+
+        site_url = None
+        for site in self.sites.get_indexers():
+            if site.get("name") == site_name:
+                site_url = site.get("url")
+                break
 
         # 生成记录列表
         records_list = []
-        for record in records:
+        for index, record in enumerate(records):
             date_str = record.get("date", "")
             status_text = record.get("status", "未知状态")
 
             # 确定状态颜色和图标
             record_color = "orange-lighten-2"
             record_icon = "mdi-bell-alert-outline"
+            state = False
 
             if "Cookie已失效" in status_text:
                 record_color = "pink-lighten-2"
@@ -1220,9 +1182,38 @@ class AutoSignIn(_PluginBase):
             elif "已签到" in status_text or "已登录" in status_text:
                 record_color = "blue-lighten-2"
                 record_icon = "mdi-checkbox-marked-circle-plus-outline"
+                state = True
             elif "成功" in status_text:
                 record_color = "teal-lighten-2"
                 record_icon = "mdi-checkbox-marked-circle-outline"
+                state = True
+
+            # 获取最新的状态作为站点概要
+            if index == 0:
+                status_color = record_color
+                status_icon = record_icon
+                latest_status = status_text
+
+            status_content = []
+            if site_url and not state:
+                status_content.append({
+                    'component': 'a',
+                    'props': {
+                        'href': site_url,
+                        'target': '_blank'
+                    },
+                    'content': [
+                        {
+                            'component': 'u',
+                            'text': status_text
+                        }
+                    ]
+                })
+            else:
+                status_content.append({
+                    'component': 'span',
+                    'text': status_text
+                })
 
             # 创建记录项
             records_list.append({
@@ -1258,7 +1249,8 @@ class AutoSignIn(_PluginBase):
                                     'class': 'ml-2 status-chip',
                                     'prepend-icon': record_icon
                                 },
-                                'text': status_text
+                                # 'text': status_text,
+                                'content': status_content
                             }
                         ]
                     }

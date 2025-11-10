@@ -57,7 +57,7 @@ class DownloadHistoryCleaner(_PluginBase):
             logger.info("立即运行一次")
             self.__scheduler = BackgroundScheduler(timezone=settings.TZ)
             self.__scheduler.add_job(func=self.clean_up, trigger="date",
-                                        run_date=datetime.now(tz=pytz.timezone(settings.TZ)) + timedelta(seconds=3))
+                                     run_date=datetime.now(tz=pytz.timezone(settings.TZ)) + timedelta(seconds=3))
 
             # 关闭一次性开关
             self._onlyonce = False
