@@ -20,7 +20,7 @@ class DownloadHistoryCleaner(_PluginBase):
     # 插件图标
     plugin_icon = "clean.png"
     # 插件版本
-    plugin_version = "1.1"
+    plugin_version = "1.2"
     # 插件作者
     plugin_author = "kim.wu"
     # 作者主页
@@ -97,6 +97,7 @@ class DownloadHistoryCleaner(_PluginBase):
             if len(data) < count:
                 break
             page += 1
+        res.sort(key=lambda x:x.id, reverse=True)
         return res
 
     def __delete_history(self, history: DownloadHistory):
@@ -236,17 +237,18 @@ class DownloadHistoryCleaner(_PluginBase):
 
     def get_form(self) -> Tuple[List[dict], Dict[str, Any]]:
         # 标题
+        title_options = []
         titles = set()
         # 剧集
         episode_options = []
         for h in self.__get_histories():
-            titles.add(h.title)
+            if h.title not in titles:
+                title_options.append({"title": h.title, "value": h.title})
+                titles.add(h.title)
 
             if h.seasons or h.episodes:
                 episode_options.append({"title": f"{h.title} {h.seasons}{h.episodes}",
                                         "value": h.id})
-
-        title_options = [{"title": t, "value": t} for t in titles]
 
         return [
             {
