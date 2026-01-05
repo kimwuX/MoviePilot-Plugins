@@ -1,3 +1,5 @@
+import json
+from datetime import datetime
 from typing import Tuple
 from urllib.parse import urljoin
 
@@ -32,31 +34,59 @@ class YemaPT(_ISiteSigninHandler):
         site_cookie = site_info.get("cookie")
         ua = site_info.get("ua")
         proxy = site_info.get("proxy")
-        render = site_info.get("render")
+        # render = site_info.get("render")
         timeout = site_info.get("timeout")
 
         logger.info(f"开始以 {self.__class__.__name__} 模型签到 {site}")
-        signin_url = urljoin(url, "/api/consumer/checkIn")
+        checklist_url = urljoin(url, "/api/consumer/fetch365AttendanceList")
+        signin_url = urljoin(url, "/api/consumer/checkInNext")
 
         headers = {
             "Content-Type": "application/json",
             "User-Agent": ua,
             "Accept": "application/json, text/plain, */*",
         }
-        # 获取用户信息，更新最后访问时间
-        res = RequestUtils(headers=headers,
-                           cookies=site_cookie,
-                           proxies=settings.PROXY if proxy else None,
-                           timeout=timeout,
-                           referer=url
-                           ).get_res(signin_url)
 
-        if res and res.json().get("success"):
+        # 签到记录
+        sign_dict = RequestUtils(headers=headers,
+                                 cookies=site_cookie,
+                                 proxies=settings.PROXY if proxy else None,
+                                 timeout=timeout,
+                                 referer=url
+                                 ).get_json(checklist_url)
+
+        if not sign_dict:
+            logger.warning(f"{site} 签到失败，请检查站点连通性")
+            return False, '签到失败，请检查站点连通性'
+
+        if not sign_dict.get("success"):
+            logger.warning(f"{site} 签到失败，Cookie已失效")
+            return False, '签到失败，Cookie已失效'
+
+        today = datetime.now().strftime("%Y%m%d")
+        for day in sign_dict.get("data"):
+            if str(day.get("checkDay")) == today:
+                logger.info(f"{site} 今日已签到")
+                return True, '今日已签到'
+
+        # 签到
+        res_dict = RequestUtils(headers=headers,
+                                cookies=site_cookie,
+                                proxies=settings.PROXY if proxy else None,
+                                timeout=timeout,
+                                referer=url
+                                ).post_json(signin_url)
+
+        if not res_dict:
+            logger.warning(f"{site} 签到失败，请检查站点连通性")
+            return False, '签到失败，请检查站点连通性'
+
+        if res_dict.get("success"):
+            logger.info(f"{site} 签到成功")
             return True, "签到成功"
-        elif res is not None:
-            return False, f"签到失败，签到结果：{res.json().get('errorMessage')}"
-        else:
-            return False, "签到失败，无法打开网站"
+
+        logger.warning(f"{site} 签到失败，接口返回：\n{res_dict}")
+        return False, '签到失败，请查看日志'
 
     def login(self, site_info: CommentedMap) -> Tuple[bool, str]:
         """
@@ -69,7 +99,7 @@ class YemaPT(_ISiteSigninHandler):
         site_cookie = site_info.get("cookie")
         ua = site_info.get("ua")
         proxy = site_info.get("proxy")
-        render = site_info.get("render")
+        # render = site_info.get("render")
         timeout = site_info.get("timeout")
 
         logger.info(f"开始以 {self.__class__.__name__} 模型模拟登录 {site}")
@@ -80,17 +110,22 @@ class YemaPT(_ISiteSigninHandler):
             "User-Agent": ua,
             "Accept": "application/json, text/plain, */*",
         }
-        # 获取用户信息，更新最后访问时间
-        res = RequestUtils(headers=headers,
-                           cookies=site_cookie,
-                           proxies=settings.PROXY if proxy else None,
-                           timeout=timeout,
-                           referer=url
-                           ).get_res(login_url)
 
-        if res and res.json().get("success"):
+        # 获取用户信息，更新最后访问时间
+        res_dict = RequestUtils(headers=headers,
+                                cookies=site_cookie,
+                                proxies=settings.PROXY if proxy else None,
+                                timeout=timeout,
+                                referer=url
+                                ).get_json(login_url)
+
+        if not res_dict:
+            logger.warning(f"{site} 模拟登录失败，请检查站点连通性")
+            return False, '模拟登录失败，请检查站点连通性'
+
+        if res_dict.get("success"):
+            logger.info(f"{site} 模拟登录成功")
             return True, "模拟登录成功"
-        elif res is not None:
-            return False, f"模拟登录失败，状态码：{res.status_code}"
-        else:
-            return False, "模拟登录失败，无法打开网站"
+
+        logger.warning(f"{site} 模拟登录失败，接口返回：\n{res_dict}")
+        return False, '模拟登录失败，请查看日志'

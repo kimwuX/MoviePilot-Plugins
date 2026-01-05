@@ -74,8 +74,13 @@ class _ISiteSigninHandler(metaclass=ABCMeta):
         pass
 
     @staticmethod
-    def get_page_source(url: str, cookie: str, ua: str, proxy: bool, render: bool,
-                        token: str = None, timeout: int = None) -> str:
+    def get_page_source(url: str,
+                        cookie: str,
+                        ua: str,
+                        proxy: bool,
+                        render: bool,
+                        token: str = None,
+                        timeout: int = None) -> str:
         """
         获取页面源码
         :param url: Url地址
@@ -108,7 +113,9 @@ class _ISiteSigninHandler(metaclass=ABCMeta):
                                proxies=settings.PROXY if proxy else None,
                                timeout=timeout or 20
                                ).get_res(url=url, allow_redirects=False)
-            while req and req.status_code in (301, 302) and req.headers['Location']:
+
+            # 重定向
+            while req is not None and req.status_code in (301, 302) and req.headers['Location']:
                 logger.info(f"重定向 {url} -> {req.headers['Location']}")
                 url = urljoin(url, req.headers['Location'])
                 req = RequestUtils(headers=headers,
@@ -116,11 +123,29 @@ class _ISiteSigninHandler(metaclass=ABCMeta):
                                    timeout=timeout or 20
                                    ).get_res(url=url, allow_redirects=False)
 
-            if req is not None and req.status_code in (200, 500, 403):
-                return RequestUtils.get_decoded_html_content(
-                    req,
-                    settings.ENCODING_DETECTION_PERFORMANCE_MODE,
-                    settings.ENCODING_DETECTION_MIN_CONFIDENCE)
+            # 403-cloudflare, 468-safeline
+            if req is not None and req.status_code in (200, 500, 403, 468):
+                try:
+                    if req.content:
+                        # 1. 获取编码信息
+                        encoding = (RequestUtils.detect_encoding_from_html_response(req,
+                                                                                    settings.ENCODING_DETECTION_PERFORMANCE_MODE,
+                                                                                    settings.ENCODING_DETECTION_MIN_CONFIDENCE)
+                                    or req.apparent_encoding)
+                        # 2. 根据解析得到的编码进行解码
+                        try:
+                            # 尝试用推测的编码解码
+                            return req.content.decode(encoding)
+                        except Exception as e:
+                            logger.debug(f"Decoding failed, error message: {str(e)}")
+                            # 如果解码失败，尝试 fallback 使用 apparent_encoding
+                            req.encoding = req.apparent_encoding
+                            return req.text
+                    else:
+                        return req.text
+                except Exception as e:
+                    logger.debug(f"Error when getting decoded content: {str(e)}")
+                    return req.text
 
             return ""
 
