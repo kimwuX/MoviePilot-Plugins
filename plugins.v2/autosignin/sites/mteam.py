@@ -48,13 +48,14 @@ class MTeam(_ISiteSigninHandler):
         timeout = site_info.get("timeout")
         apikey = site_info.get("apikey")
         token = site_info.get("token")
-        if not apikey or not token:
-            logger.warning(f"{site} 模拟登录失败，未配置请求头或令牌")
-            return False, '模拟登录失败，未配置请求头或令牌'
 
         logger.info(f"开始以 {self.__class__.__name__} 模型模拟登录 {site}")
         domain = StringUtils.get_url_domain(url)
         login_url = f"https://api.{domain}/api/member/updateLastBrowse"
+
+        if not apikey or not token:
+            logger.warning(f"{site} 模拟登录失败，未配置请求头或令牌")
+            return False, '模拟登录失败，未配置请求头或令牌'
 
         headers = {
             "Accept": "application/json, text/plain, */*",
