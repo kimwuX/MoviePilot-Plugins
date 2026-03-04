@@ -62,5 +62,21 @@
             "v3.0.1": "遗漏了一个私有属性",
             "v3.0": "兼容MoviePilot V2 版本"
         }
+    },
+    "CloudflareSpeedTest": {
+        "name": "Cloudflare IP优选",
+        "description": "🌩 测试 Cloudflare CDN 延迟和速度，自动优选IP。",
+        "labels": "网络,站点",
+        "version": "1.5.1",
+        "icon": "cloudflare.jpg",
+        "author": "thsrite",
+        "level": 1,
+        "history": {
+            "v1.5.1": "重构：大量优选逻辑",
+            "v1.5": "适配CloudflareSpeedTest新版名称",
+            "v1.4": "修复立即运行一次",
+            "v1.3": "调整插件开启状态判断条件",
+            "v1.2": "增强API安全性"
+        }
     }
 }
