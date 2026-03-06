@@ -4,6 +4,7 @@ import subprocess
 import zipfile
 from datetime import datetime, timedelta
 from typing import List, Tuple, Dict, Any
+from threading import Event as ThreadEvent, RLock
 
 import pytz
 from apscheduler.schedulers.background import BackgroundScheduler
@@ -12,6 +13,7 @@ from apscheduler.triggers.cron import CronTrigger
 from app import schemas
 from app.core.config import settings
 from app.core.event import eventmanager, Event
+from app.core.plugin import PluginManager
 from app.log import logger
 from app.plugins import _PluginBase
 from app.schemas.types import EventType, NotificationType
@@ -28,7 +30,7 @@ class CloudflareSpeedTest(_PluginBase):
     # 插件图标
     plugin_icon = "cloudflare.jpg"
     # 插件版本
-    plugin_version = "1.5.1"
+    plugin_version = "1.5.2"
     # 插件作者
     plugin_author = "thsrite"
     # 作者主页
@@ -60,7 +62,14 @@ class CloudflareSpeedTest(_PluginBase):
     _release_prefix = 'https://github.com/XIU2/CloudflareSpeedTest/releases/download'
     _binary_name = 'cfst'
 
+    # 退出事件
+    __exit_event: ThreadEvent = None
+    # 任务锁
+    __task_lock: RLock = None
+
     def init_plugin(self, config: dict = None):
+        self.__exit_event = ThreadEvent()
+        self.__task_lock = RLock()
         # 停止现有任务
         self.stop_service()
 
@@ -81,7 +90,7 @@ class CloudflareSpeedTest(_PluginBase):
             try:
                 self._scheduler = BackgroundScheduler(timezone=settings.TZ)
                 logger.info(f"服务启动，立即运行一次")
-                self._scheduler.add_job(func=self.__cloudflareSpeedTest, trigger='date',
+                self._scheduler.add_job(func=self.try_run, trigger='date',
                                         run_date=datetime.now(tz=pytz.timezone(settings.TZ)) + timedelta(seconds=3))
 
                 # 启动任务
@@ -95,36 +104,36 @@ class CloudflareSpeedTest(_PluginBase):
                 self._onlyonce = False
                 self.__update_config()
 
-    @eventmanager.register(EventType.PluginAction)
-    def __cloudflareSpeedTest(self, event: Event = None):
+    def try_run(self):
+        """
+        尝试运行插件任务
+        """
+        if not self.__task_lock.acquire(blocking=False):
+            logger.warning("已有进行中的任务，本次不执行")
+            return
+        try:
+            self.__cloudflareSpeedTest()
+        except Exception as e:
+            logger.error(f"尝试运行插件任务异常：{str(e)}", exc_info=True)
+        finally:
+            self.__task_lock.release()
+
+    def __cloudflareSpeedTest(self):
         """
         CloudflareSpeedTest优选
         """
-        if event:
-            event_data = event.event_data
-            if not event_data or event_data.get("action") != "cloudflare_speedtest":
-                return
+        if self.__exit_event.is_set():
+            logger.warning("插件服务正在退出，任务终止")
+            return
 
         self._cf_path = self.get_data_path().joinpath('app')
         self._cf_ipv4 = "ip.txt"
         self._cf_ipv6 = "ipv6.txt"
         self._result_file = "result.txt"
 
-        # 获取自定义Hosts插件，若无设置则停止
-        customHosts = self.get_config("CustomHosts")
-        if not customHosts or not customHosts.get("hosts"):
+        if not PluginManager.is_plugin_exists("CustomHosts"):
             logger.error(f"当前插件依赖于【自定义Hosts】插件，请先安装并配置【自定义Hosts】")
             return
-
-        if not self._cf_ip:
-            logger.error("首次运行，需要配置【优选IP】")
-            return
-
-        if event and event.event_data:
-            logger.info("收到命令，开始 Cloudflare IP 优选 ...")
-            self.post_message(channel=event.event_data.get("channel"),
-                              title="开始 Cloudflare IP 优选 ...",
-                              userid=event.event_data.get("user"))
 
         if SystemUtils.is_windows():
             self._binary_name = "cfst.exe"
@@ -135,16 +144,17 @@ class CloudflareSpeedTest(_PluginBase):
         if not self._ipv4 and not self._ipv6:
             self._ipv4 = True
             self.__update_config()
-            logger.warning(f"未指定 IP 类型，已设置为 IPv4")
+            logger.warning(f"未指定 IP 类型，默认为 IPv4")
 
         flag, release_version = self.__check_environment()
-        if flag and release_version:
+        if not flag:
+            return
+        if release_version:
             # 更新版本
             self._version = release_version
             self.__update_config()
-
-        if not flag:
-            logger.error("未能检测到优选 App，请重试")
+        if self.__exit_event.is_set():
+            logger.warning("插件服务正在退出，任务终止")
             return
 
         if self._ipv4 and not self._cf_path.joinpath(self._cf_ipv4).exists():
@@ -155,16 +165,12 @@ class CloudflareSpeedTest(_PluginBase):
             logger.error(f"数据文件 {self._cf_ipv6} 丢失，请打开【重装后运行】开关重试")
             return
 
-        hosts = customHosts.get("hosts")
-        if isinstance(hosts, str):
-            hosts = str(hosts).split('\n')
-
         # 校正优选ip
         if self._check:
-            self.__check_cf_ip(hosts)
+            self.__check_cf_ip()
 
         # 开始优选
-        logger.info("正在进行 IP 优选，请耐心等待")
+        logger.info("正在进行 IP 优选测试，请耐心等待 ...")
         # 执行优选命令，-dd不测速
         if SystemUtils.is_windows():
             cf_command = f'cd \"{self._cf_path}\" && {self._binary_name} ' + (
@@ -176,12 +182,15 @@ class CloudflareSpeedTest(_PluginBase):
                 f'{self._additional_args} -p 0 -o {self._result_file}') + (
                 f' -f {self._cf_ipv4}' if self._ipv4 else '') + (
                 f' -f {self._cf_ipv6}' if self._ipv6 else '')
-        logger.info(f'执行优选命令: {cf_command}')
+        logger.debug(f'优选命令: {cf_command}')
         try:
             subprocess.run(cf_command, shell=True, check=True, timeout=600)
         except Exception as e:
-            logger.error(f'优选命令执行失败: {e}')
+            logger.error(f'优选测试失败: {e}')
             self.__kill_process(self._binary_name)
+            return
+        if self.__exit_event.is_set():
+            logger.warning("插件服务正在退出，任务终止")
             return
 
         # 获取优选后最优ip
@@ -191,72 +200,65 @@ class CloudflareSpeedTest(_PluginBase):
             if lines and len(lines) > 1:
                 best_ip = lines[1].split(',')[0]
         except Exception as e:
-            logger.error(f'获取新优选 IP 异常: {e}')
+            logger.warning(f'获取优选结果失败: {e}')
         if not best_ip:
             logger.error("未能获取新优选 IP，停止运行")
             return
 
         logger.info(f"新优选 IP 获取成功: {best_ip}")
         if best_ip == self._cf_ip:
-            logger.info(f"优选 IP 未变，不做处理")
+            logger.info(f"优选 IP 未改变，不做处理")
             return
 
         # 通知自定义Hosts插件更新hosts
-        if IpUtils.is_ipv4(best_ip) or IpUtils.is_ipv6(best_ip):
-            # 替换优选ip
-            err_hosts = customHosts.get("err_hosts")
-
-            # 处理ip
-            new_hosts = []
-            for host in hosts:
-                if host and host != '\n':
-                    host_arr = str(host).split()
-                    if host_arr[0] == self._cf_ip:
-                        new_hosts.append(host.replace(self._cf_ip, best_ip).replace("\n", "") + "\n")
-                    else:
-                        new_hosts.append(host.replace("\n", "") + "\n")
-
-            # 更新自定义Hosts
-            self.update_config(
-                {
-                    "hosts": ''.join(new_hosts),
-                    "err_hosts": err_hosts,
-                    "enabled": True
-                }, "CustomHosts"
-            )
-
+        if IpUtils.is_ip(best_ip):
             # 更新优选ip
             old_ip = self._cf_ip
             self._cf_ip = best_ip
             self.__update_config()
 
-            # 解发自定义hosts插件重载
-            logger.info("通知【自定义Hosts】插件更新系统 Hosts 文件...")
-            self.eventmanager.send_event(EventType.PluginReload,
+            # 触发【自定义Hosts】插件更新操作
+            logger.info("通知【自定义Hosts】插件更新系统 hosts 文件...")
+            self.eventmanager.send_event(EventType.PluginAction,
                                          {
-                                             "plugin_id": "CustomHosts"
+                                             "action": "custom_hosts_cfip",
+                                             "ip_o": old_ip,
+                                             "ip_n": best_ip
                                          })
             if self._notify:
-                self.post_message(
-                    mtype=NotificationType.Plugin,
-                    title="【Cloudflare IP优选服务任务完成】",
-                    text=f"原 IP: {old_ip}\n新 IP: {best_ip}"
-                )
+                self.post_message(mtype=NotificationType.Plugin,
+                                  title=f"【{self.plugin_name}】插件",
+                                  text=f"原 IP: " + (old_ip if old_ip else "未配置") + f"\n新 IP: {best_ip}")
 
-    def __check_cf_ip(self, hosts):
+    def __check_cf_ip(self):
         """
         校正cf优选ip
         防止特殊情况下cf优选ip和【自定义Hosts】插件中ip不一致
         """
+        customHosts = self.get_config("CustomHosts")
+        if not customHosts:
+            logger.warning("获取【自定义Hosts】配置失败，无法自动校准")
+            return
+        hosts = customHosts.get("hosts")
+        if isinstance(hosts, str):
+            hosts_list = hosts.split('\n')
+        if not hosts_list:
+            logger.warning("【自定义Hosts】参数配置为空，无法自动校准")
+            return
+
         # 统计每个IP地址出现的次数
         ip_count = {}
-        for host in hosts:
-            if host:
-                ip = host.split()[0]
-                if ip in ip_count:
-                    ip_count[ip] += 1
-                else:
-                    ip_count[ip] = 1
+        for host in hosts_list:
+            if not host or not host.strip():  # 空行
+                continue
+            host = host.strip()
+            if host.startswith('#'):  # 注释行
+                continue
+            ip = host.split()[0]
+            if ip in ip_count:
+                ip_count[ip] += 1
+            else:
+                ip_count[ip] = 1
 
         # 找出出现次数最多的IP地址
         max_ips = []  # 保存最多出现的IP地址
@@ -272,8 +274,9 @@ class CloudflareSpeedTest(_PluginBase):
         if len(max_ips) != 1:
             return
 
-        if max_ips[0] != self._cf_ip:
+        if IpUtils.is_ip(max_ips[0]) and not IpUtils.is_private_ip(max_ips[0]) and max_ips[0] != self._cf_ip:
             self._cf_ip = max_ips[0]
+            self.__update_config()
             logger.info(f"检测到【自定义hosts】插件中 [{max_ips[0]}] 出现次数最多，已自动校正当前优选 IP")
 
     def __check_environment(self):
@@ -303,12 +306,12 @@ class CloudflareSpeedTest(_PluginBase):
                 logger.warning(f"获取 App 版本失败，存在可执行版本，继续运行")
                 return True, None
             elif self._version:
-                logger.error(f"获取 App 版本失败，开始安装上次运行版本({self._version})")
+                logger.warning(f"获取 App 版本失败，开始安装上次运行版本({self._version})")
                 install_flag = True
             else:
                 release_version = "v2.2.2"
                 self._version = release_version
-                logger.error(f"获取 App 版本失败，开始安装默认版本({release_version})")
+                logger.warning(f"获取 App 版本失败，开始安装默认版本({release_version})")
                 install_flag = True
 
         # 有更新
@@ -319,11 +322,11 @@ class CloudflareSpeedTest(_PluginBase):
         # 重装后数据库有版本数据，但是本地没有则重装
         if not install_flag and release_version == self._version \
             and not self._cf_path.joinpath(self._binary_name).exists():
-            logger.warning(f"未检测到 App 本地版本，重新安装")
+            logger.warning(f"未检测到可执行文件，开始重新安装: {release_version}")
             install_flag = True
 
         if not install_flag:
-            logger.info(f"App 无新版本，存在可执行版本，继续运行")
+            logger.info(f"App 无版本更新，继续运行")
             return True, None
 
         # 检查环境、安装
@@ -377,16 +380,16 @@ class CloudflareSpeedTest(_PluginBase):
                     self.__remove_file_or_dir(cf_file_path)
                     return True, release_version
                 else:
-                    logger.error(f"App 安装失败，未能检测到可执行文件")
+                    logger.error(f"App 安装失败，未检测到可执行文件，停止运行")
                     return False, None
             except Exception as err:
-                logger.error(f"App 安装失败: {str(err)}")
+                logger.warning(f"App 解压失败: {str(err)}")
                 # 如果升级失败但是有可执行文件，则可继续运行，反之停止
                 if binary_path.exists():
-                    logger.info(f"存在可执行版本，继续运行")
+                    logger.warning(f"App 解压失败，存在可执行版本，继续运行")
                     return True, None
                 else:
-                    logger.error(f"无可用版本，停止运行")
+                    logger.error(f"App 解压失败，无可用版本，停止运行")
                     return False, None
         else:
             # 如果下载升级失败但是有可执行文件，则可继续运行，反之停止
@@ -415,7 +418,7 @@ class CloudflareSpeedTest(_PluginBase):
                 subprocess.run(command, shell=True, check=True)
             logger.info(f"App 下载成功")
         except Exception as e:
-            logger.error(f"App 下载失败: {str(e)}")
+            logger.warning(f"App 下载失败: {str(e)}")
 
     def __get_release_version(self):
         """
@@ -497,7 +500,7 @@ class CloudflareSpeedTest(_PluginBase):
     def get_api(self) -> List[Dict[str, Any]]:
         return [{
             "path": "/cloudflare_speedtest",
-            "endpoint": self.cloudflare_speedtest,
+            "endpoint": self.cloudflare_speedtest_api,
             "methods": ["GET"],
             "summary": "Cloudflare IP优选",
             "description": "Cloudflare IP优选",
@@ -510,7 +513,7 @@ class CloudflareSpeedTest(_PluginBase):
                     "id": f"{self.__class__.__name__}TimerService",
                     "name": f"{self.plugin_name}定时服务",
                     "trigger": CronTrigger.from_crontab(self._cron),
-                    "func": self.__cloudflareSpeedTest,
+                    "func": self.try_run,
                     "kwargs": {}
                 }]
         except Exception as e:
@@ -681,7 +684,7 @@ class CloudflareSpeedTest(_PluginBase):
                                         'component': 'VSwitch',
                                         'props': {
                                             'model': 'notify',
-                                            'label': '运行时通知',
+                                            'label': '发送通知',
                                         }
                                     }
                                 ]
@@ -738,30 +741,22 @@ class CloudflareSpeedTest(_PluginBase):
             "version": "",
             "ipv4": True,
             "ipv6": False,
-            "check": False,
+            "check": True,
             "onlyonce": False,
             "re_install": False,
-            "notify": True,
+            "notify": False,
             "additional_args": ""
         }
 
     def get_page(self) -> List[dict]:
         pass
 
-    def cloudflare_speedtest(self, apikey: str) -> schemas.Response:
-        """
-        API调用CloudflareSpeedTest IP优选
-        """
-        if apikey != settings.API_TOKEN:
-            return schemas.Response(success=False, message="API密钥错误")
-        self.__cloudflareSpeedTest()
-        return schemas.Response(success=True)
-
     def stop_service(self):
         """
         退出插件
         """
         try:
+            self.__exit_event.set()
             if self._scheduler:
                 self._scheduler.remove_all_jobs()
                 if self._scheduler.running:
@@ -769,3 +764,38 @@ class CloudflareSpeedTest(_PluginBase):
                 self._scheduler = None
         except Exception as e:
             logger.error("退出插件失败：%s" % str(e))
+        finally:
+            self.__exit_event.clear()
+
+    def cloudflare_speedtest_api(self, apikey: str) -> schemas.Response:
+        """
+        API调用CloudflareSpeedTest IP优选
+        """
+        if apikey != settings.API_TOKEN:
+            return schemas.Response(success=False, message="API密钥错误")
+        self.try_run()
+        return schemas.Response(success=True)
+
+    @eventmanager.register(EventType.PluginAction)
+    def event_handler(self, event: Event):
+        """
+        远程命令处理
+        """
+        event_data = event.event_data
+        if not event_data or event_data.get("action") != "cloudflare_speedtest":
+            return
+
+        logger.info(f"收到命令，开始优选 IP 测试 ...")
+        if self._notify:
+            self.post_message(channel=event.event_data.get("channel"),
+                              title=f"【{self.plugin_name}】插件",
+                              text="开始优选 IP 测试 ...",
+                              userid=event.event_data.get("user"))
+
+        self.try_run()
+
+        if self._notify:
+            self.post_message(channel=event.event_data.get("channel"),
+                              title=f"【{self.plugin_name}】插件",
+                              text=f"优选 IP 测试结束",
+                              userid=event.event_data.get("user"))

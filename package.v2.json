@@ -67,7 +67,7 @@
         "name": "Cloudflare IP优选",
         "description": "🌩 测试 Cloudflare CDN 延迟和速度，自动优选IP。",
         "labels": "网络,站点",
-        "version": "1.5.1",
+        "version": "1.5.2",
         "icon": "cloudflare.jpg",
         "author": "thsrite",
         "level": 1,
