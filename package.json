@@ -3,7 +3,7 @@
         "name": "自定义Hosts",
         "description": "修改系统hosts文件，加速网络访问。",
         "labels": "网络",
-        "version": "1.2.1",
+        "version": "1.2.2",
         "icon": "hosts.png",
         "author": "thsrite",
         "level": 1,
