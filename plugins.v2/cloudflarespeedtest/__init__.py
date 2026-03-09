@@ -30,7 +30,7 @@ class CloudflareSpeedTest(_PluginBase):
     # 插件图标
     plugin_icon = "cloudflare.jpg"
     # 插件版本
-    plugin_version = "1.5.2"
+    plugin_version = "1.5.3"
     # 插件作者
     plugin_author = "thsrite"
     # 作者主页
@@ -292,6 +292,8 @@ class CloudflareSpeedTest(_PluginBase):
             if not self.__remove_file_or_dir(self._cf_path):
                 logger.error(f'App 目录删除失败')
                 return False, None
+            self._re_install = False
+            self.__update_config()
             logger.info(f'已删除 App 目录({self._cf_path})，开始重新安装')
 
         # 判断目录是否存在
@@ -309,7 +311,7 @@ class CloudflareSpeedTest(_PluginBase):
                 logger.warning(f"获取 App 版本失败，开始安装上次运行版本({self._version})")
                 install_flag = True
             else:
-                release_version = "v2.2.2"
+                release_version = "v2.3.4"
                 self._version = release_version
                 logger.warning(f"获取 App 版本失败，开始安装默认版本({release_version})")
                 install_flag = True
@@ -333,7 +335,7 @@ class CloudflareSpeedTest(_PluginBase):
         if SystemUtils.is_windows():
             # windows
             cf_file_name = 'cfst_windows_amd64.zip'
-            # https://github.com/XIU2/CloudflareSpeedTest/releases/download/v2.2.2/cfst_windows_amd64.zip
+            # https://github.com/XIU2/CloudflareSpeedTest/releases/download/v2.3.4/cfst_windows_amd64.zip
             download_url = f'{self._release_prefix}/{release_version}/{cf_file_name}'
             command = ""
         elif SystemUtils.is_macos():
@@ -402,21 +404,16 @@ class CloudflareSpeedTest(_PluginBase):
 
     def __get_cloudflare_st(self, download_url, cf_file_path):
         try:
-            proxies = settings.PROXY
-            if SystemUtils.is_windows():
-                response = RequestUtils(proxies=proxies).get_res(url=download_url, stream=True)
-                if response.status_code == 200:
-                    with open(cf_file_path, 'wb') as file:
-                        for chunk in response.iter_content(chunk_size=8192):
-                            file.write(chunk)
+            response = RequestUtils(proxies=settings.PROXY).get_res(url=download_url, stream=True)
+            if response is None:
+                logger.warning(f"App 下载失败: 网络连接失败")
+            elif response.status_code == 200:
+                with open(cf_file_path, 'wb') as file:
+                    for chunk in response.iter_content(chunk_size=8192):
+                        file.write(chunk)
+                logger.info(f"App 下载成功")
             else:
-                if proxies and proxies.get("https"):
-                    command = f'wget -P {self._cf_path} --no-check-certificate \
-                        -e use_proxy=yes -e https_proxy={proxies.get("https")} {download_url}'
-                else:
-                    command = f'wget -P {self._cf_path} {download_url}'
-                subprocess.run(command, shell=True, check=True)
-            logger.info(f"App 下载成功")
+                logger.warning(f"App 下载失败: {response.status_code} {response.reason}")
         except Exception as e:
             logger.warning(f"App 下载失败: {str(e)}")
 
@@ -480,7 +477,7 @@ class CloudflareSpeedTest(_PluginBase):
         })
 
     def get_state(self) -> bool:
-        return True if self._cf_ip and self._cron and (self._ipv4 or self._ipv6) else False
+        return True if self._cron else False
 
     @staticmethod
     def get_command() -> List[Dict[str, Any]]:
@@ -741,7 +738,7 @@ class CloudflareSpeedTest(_PluginBase):
             "version": "",
             "ipv4": True,
             "ipv6": False,
-            "check": True,
+            "check": False,
             "onlyonce": False,
             "re_install": False,
             "notify": False,

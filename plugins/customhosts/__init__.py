@@ -22,7 +22,7 @@ class CustomHosts(_PluginBase):
     # 插件图标
     plugin_icon = "hosts.png"
     # 插件版本
-    plugin_version = "1.2.2"
+    plugin_version = "1.2.3"
     # 插件作者
     plugin_author = "thsrite"
     # 作者主页
@@ -354,7 +354,7 @@ class CustomHosts(_PluginBase):
             return
         ip_o = event_data.get("ip_o")
         ip_n = event_data.get("ip_n")
-        logger.info(f"收到命令，开始更新优选 IP: [{ip_o}] => [{ip_n}] ...")
+        logger.info(f"收到命令，开始更新优选 IP: [{ip_o}] => [{ip_n}]")
         if not ip_o or not IpUtils.is_ip(ip_o) or not ip_n or not IpUtils.is_ip(ip_n):
             logger.warning(f"IP 地址格式有误: 旧({ip_o}) / 新({ip_n})，退出更新流程")
             return
@@ -365,6 +365,7 @@ class CustomHosts(_PluginBase):
                               text="开始更新优选 IP ...",
                               userid=event.event_data.get("user"))
 
+        count = 0
         # 处理ip
         for i in range(len(self._hosts_list)):
             host = self._hosts_list[i]
@@ -375,7 +376,13 @@ class CustomHosts(_PluginBase):
                 continue
             if host.strip().split()[0] == ip_o:
                 self._hosts_list[i] = host.replace(ip_o, ip_n)
+                count += 1
 
+        if count == 0:
+            logger.warning(f"未配置 IP = {ip_o} 的 hosts 记录，退出更新流程")
+            return
+
+        logger.info(f"已修改{count}条 hosts 记录，正在更新系统 hosts ...")
         self.__update_config()
         self.__run_now()
 
