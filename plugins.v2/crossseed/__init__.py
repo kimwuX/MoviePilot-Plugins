@@ -180,7 +180,7 @@ class CrossSeed(_PluginBase):
     # 插件图标
     plugin_icon = "qingwa.png"
     # 插件版本
-    plugin_version = "3.0.1.6"
+    plugin_version = "3.0.2.1"
     # 插件作者
     plugin_author = "233@qingwa"
     # 作者主页
