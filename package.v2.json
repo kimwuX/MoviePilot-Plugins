@@ -53,12 +53,12 @@
         "name": "青蛙辅种助手",
         "description": "参考ReseedPuppy和IYUU辅种插件实现自动辅种，支持站点：青蛙、AGSVPT、麒麟、UBits、聆音、憨憨等。",
         "labels": "做种",
-        "version": "3.0.2.1",
+        "version": "3.0.2.2",
         "icon": "qingwa.png",
         "author": "233@qingwa",
         "level": 2,
         "history": {
-            "v3.0.2.1": "重构：大量辅种逻辑",
+            "v3.0.2.2": "重构：大量辅种逻辑",
             "v3.0.2": "更新依赖库",
             "v3.0.1": "遗漏了一个私有属性",
             "v3.0": "兼容MoviePilot V2 版本"
