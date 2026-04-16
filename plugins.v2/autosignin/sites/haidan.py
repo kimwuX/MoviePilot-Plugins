@@ -20,7 +20,7 @@ class HaiDan(_ISiteSigninHandler):
         """
         获取当前站点域名，可以是单个或者多个域名
         """
-        return "www.haidan.video"
+        return "www.haidan.cc"
 
     def signin(self, site_info: CommentedMap) -> Tuple[bool, str]:
         """
