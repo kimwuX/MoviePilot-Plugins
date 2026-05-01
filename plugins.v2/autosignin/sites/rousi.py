@@ -78,8 +78,8 @@ class RousiPro(_ISiteSigninHandler):
             logger.info(f"{site} 今日已签到")
             return True, '今日已签到'
         elif res_sign.status_code == 401:
-            logger.warning(f"{site} 签到失败，登录状态无效")
-            return False, '签到失败，登录状态无效'
+            logger.warning(f"{site} 签到失败，Token已失效")
+            return False, '签到失败，Token已失效'
         elif res_sign.status_code == 200:
             dict_sign = self.get_json(res_sign)
             if dict_sign and dict_sign.get("bonus"):
@@ -128,8 +128,8 @@ class RousiPro(_ISiteSigninHandler):
             logger.warning(f"{site} 模拟登录失败，请检查站点连通性")
             return False, '模拟登录失败，请检查站点连通性'
         elif res_info.status_code == 401:
-            logger.warning(f"{site} 模拟登录失败，登录状态无效")
-            return False, '模拟登录失败，登录状态无效'
+            logger.warning(f"{site} 模拟登录失败，Token已失效")
+            return False, '模拟登录失败，Token已失效'
         elif res_info.status_code == 200:
             dict_info = self.get_json(res_info)
             if dict_info and dict_info.get("passkey"):
