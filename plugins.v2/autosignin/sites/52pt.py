@@ -85,10 +85,12 @@ class PT52(_ISiteSigninHandler):
             return False, f'签到失败，无法解析：\n{html_text}'
 
         # 获取页面问题、答案
+        question_str = ' '.join(html.xpath("//div[@class='question-box']/div/text()"))
         questionid = html.xpath("//input[@name='questionid']/@value")[0]
-        question_str = html.xpath("//td[@class='text' and contains(text(),'请问：')]/text()")[0]
+        baka_token = html.xpath("//input[@name='baka_token']/@value")[0]
         option_ids = html.xpath("//input[@name='choice[]']/@value")
         option_texts = html.xpath("//input[@name='choice[]']/following-sibling::text()")
+        captcha_code = html.xpath("//span[@id='captcha_code_span']/text()")[0]
 
         logger.debug(f"{site} 签到问题：{questionid} - {re.sub(r'\s+', ' ', question_str.strip())}")
         logger.debug(f"{site} 答案选项：{list(zip(option_ids, option_texts))}")
@@ -105,6 +107,8 @@ class PT52(_ISiteSigninHandler):
             if choice:
                 return self.__signin(questionid=questionid,
                                      choice=choice,
+                                     baka_token=baka_token,
+                                     captcha_code=captcha_code,
                                      site=site,
                                      url=url,
                                      site_cookie=site_cookie,
@@ -121,6 +125,8 @@ class PT52(_ISiteSigninHandler):
 
     def __signin(self, questionid: str,
                  choice: list,
+                 baka_token: str,
+                 captcha_code: str,
                  site: str,
                  url: str,
                  site_cookie: str,
@@ -130,17 +136,21 @@ class PT52(_ISiteSigninHandler):
         """
         签到请求
         questionid: 450
+        baka_token: f59xxxxx0d8
         choice[]: 8
         choice[]: 4
         usercomment: 此刻心情:无
+        captcha: 1234
         submit: 提交
         多选会有多个choice[]....
         选不会又回答正确有加成
         """
         data = {
             'questionid': questionid,
+            'baka_token': baka_token,
             'choice[]': choice[0] if len(choice) == 1 else choice,
             'usercomment': '不会啊~',
+            'captcha': captcha_code,
             # 'submit': '提交'
             'wantskip': '不会'
         }
