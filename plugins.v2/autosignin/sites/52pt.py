@@ -84,13 +84,25 @@ class PT52(_ISiteSigninHandler):
         if not html:
             return False, f'签到失败，无法解析：\n{html_text}'
 
+        # 获取验证码
+        # captchaInput.value = '4499'
+        script_text = html.xpath("//input[@id='fake_captcha']/following-sibling::script[1]/text()")
+        if script_text:
+            mat = re.search(r"captchaInput\.value\s*=\s*'(\d+)'", script_text[0])
+            if mat:
+                captcha_code = mat[1]
+
+        if not captcha_code:
+            logger.warning(f"{site} 签到失败，获取验证码失败")
+            return False, '签到失败，获取验证码失败'
+        logger.debug('验证码：' + captcha_code)
+
         # 获取页面问题、答案
         question_str = ' '.join(html.xpath("//div[@class='question-box']/div/text()"))
         questionid = html.xpath("//input[@name='questionid']/@value")[0]
         baka_token = html.xpath("//input[@name='baka_token']/@value")[0]
         option_ids = html.xpath("//input[@name='choice[]']/@value")
         option_texts = html.xpath("//input[@name='choice[]']/following-sibling::text()")
-        captcha_code = html.xpath("//span[@id='captcha_code_span']/text()")[0]
 
         logger.debug(f"{site} 签到问题：{questionid} - {re.sub(r'\s+', ' ', question_str.strip())}")
         logger.debug(f"{site} 答案选项：{list(zip(option_ids, option_texts))}")
