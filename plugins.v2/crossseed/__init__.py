@@ -180,7 +180,7 @@ class CrossSeed(_PluginBase):
     # 插件图标
     plugin_icon = "qingwa.png"
     # 插件版本
-    plugin_version = "3.0.2.2"
+    plugin_version = "3.0.3.1"
     # 插件作者
     plugin_author = "233@qingwa"
     # 作者主页
@@ -216,6 +216,8 @@ class CrossSeed(_PluginBase):
     # 待校全种子hash清单
     _recheck_torrents = {}
     _is_recheck_running = False
+    # 辅种缓存最大保存条数，避免长期运行时配置缓存无限增长
+    _seed_cache_max_items = 10000
     _torrentpath_list = []
     _nopaths_list = []
     _addlabels_list = []
@@ -314,6 +316,8 @@ class CrossSeed(_PluginBase):
 
         # 停止现有任务
         self.stop_service()
+        # 重新初始化运行期校验队列，避免类级字典跨插件重载残留。
+        self._recheck_torrents = {}
 
         # 启动定时任务 & 立即运行一次
         if self.get_state() or self._onlyonce:
@@ -765,6 +769,22 @@ class CrossSeed(_PluginBase):
             "nolabels": self._nolabels
         })
 
+    def __trim_seed_cache(self, cache: list):
+        """
+        去重并限制辅种缓存大小，避免长期任务把配置缓存无限撑大。
+        """
+        if not cache:
+            return
+        unique_cache = []
+        seen = set()
+        for item in reversed(cache):
+            if not item or item in seen:
+                continue
+            seen.add(item)
+            unique_cache.append(item)
+        unique_cache.reverse()
+        cache[:] = unique_cache[-self._seed_cache_max_items:]
+
     def auto_seed(self):
         """
         开始辅种
@@ -1069,9 +1089,9 @@ class CrossSeed(_PluginBase):
                                         fail_cache=fail_cache,
                                         error_cache=error_cache)
 
-            cache_data["success"] = success_cache
+            cache_data["success"] = self.__trim_seed_cache(success_cache)
             cache_data["fail"] = fail_cache
-            cache_data["error"] = error_cache
+            cache_data["error"] = self.__trim_seed_cache(error_cache)
             self.set_plugin_data(f"{service.name}{self.key_sep}{site_config.name}", cache_data)
 
         logger.info(f"下载器 {service.name} 辅种完成")
