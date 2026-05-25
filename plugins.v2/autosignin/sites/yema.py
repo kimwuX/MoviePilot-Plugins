@@ -37,7 +37,8 @@ class YemaPT(_ISiteSigninHandler):
         timeout = site_info.get("timeout")
 
         logger.info(f"开始以 {self.__class__.__name__} 模型签到 {site}")
-        checklist_url = urljoin(url, "/api/consumer/fetch365AttendanceList")
+        # checklist_url = urljoin(url, "/api/consumer/fetch365AttendanceList")
+        checklist_url = urljoin(url, "/api/consumer/fetchCheckInPageInfo")
         signin_url = urljoin(url, "/api/consumer/checkInNext")
 
         headers = {
@@ -61,11 +62,14 @@ class YemaPT(_ISiteSigninHandler):
             logger.warning(f"{site} 签到失败，Cookie已失效")
             return False, '签到失败，Cookie已失效'
 
-        today = datetime.now().strftime("%Y%m%d")
-        for day in sign_dict.get("data"):
-            if str(day.get("checkDay")) == today:
-                logger.info(f"{site} 今日已签到")
-                return True, '今日已签到'
+        # today = datetime.now().strftime("%Y%m%d")
+        # for day in sign_dict.get("data"):
+        #     if str(day.get("checkDay")) == today:
+        #         logger.info(f"{site} 今日已签到")
+        #         return True, '今日已签到'
+        if sign_dict.get("data") and sign_dict.get("data").get("checkedInToday"):
+            logger.info(f"{site} 今日已签到")
+            return True, '今日已签到'
 
         headers["Content-Type"] = "application/json";
 
