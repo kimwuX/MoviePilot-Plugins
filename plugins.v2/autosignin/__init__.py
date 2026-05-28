@@ -37,7 +37,7 @@ class AutoSignIn(_PluginBase):
     # 插件图标
     plugin_icon = "signin.png"
     # 插件版本
-    plugin_version = "2.9.1.1"
+    plugin_version = "2.9.1.2"
     # 插件作者
     plugin_author = "thsrite"
     # 作者主页
@@ -50,7 +50,7 @@ class AutoSignIn(_PluginBase):
     auth_level = 2
 
     # 私有属性
-    sites: SitesHelper = None
+    siteshelper: SitesHelper = None
     siteoper: SiteOper = None
     sitechain: SiteChain = None
     # 事件管理器
@@ -75,10 +75,10 @@ class AutoSignIn(_PluginBase):
     _auto_cf: int = 0
 
     def init_plugin(self, config: dict = None):
-        self.sites = SitesHelper()
+        self.siteshelper = SitesHelper()
         self.siteoper = SiteOper()
-        self.event = EventManager()
         self.sitechain = SiteChain()
+        self.event = EventManager()
 
         # 停止现有任务
         self.stop_service()
@@ -904,7 +904,7 @@ class AutoSignIn(_PluginBase):
         汇总系统站点、索引器站点和自定义站点名称，供详情页历史记录反查。
         """
         sites_info = {}
-        for site in self.sites.get_indexers():
+        for site in self.siteshelper.get_indexers():
             if not site.get("public"):
                 self._add_site_info(
                     sites_info=sites_info,
@@ -1331,7 +1331,10 @@ class AutoSignIn(_PluginBase):
                             'color': today_meta.get("color"),
                             'prepend-icon': today_meta.get("icon")
                         },
-                        'text': today_meta.get("label")
+                        # 'text': today_meta.get("label")
+                        'content': [
+                            cls._build_today_status(site_name=site_name, today_meta=today_meta)
+                        ]
                     }
                 ]
             }
@@ -1352,6 +1355,37 @@ class AutoSignIn(_PluginBase):
             'component': 'tr',
             'content': row_cells
         }
+
+    @classmethod
+    def _build_today_status(cls, site_name: str, today_meta: dict) -> dict:
+        """
+        构建矩阵中今日状态，非成功状态添加跳转链接。
+        """
+        site_url = next(
+            (site.get("url") for site in SitesHelper().get_indexers() if site.get("name") == site_name),
+            None
+        )
+        if today_meta.get("level") in ['error', 'warning'] and site_url:
+            status = {
+                'component': 'a',
+                'props': {
+                    'href': site_url,
+                    'target': '_blank',
+                    'title': '点击跳转'
+                },
+                'content': [
+                    {
+                        'component': 'u',
+                        'text': today_meta.get("label")
+                    }
+                ]
+            }
+        else:
+            status = {
+                'component': 'span',
+                'text': today_meta.get("label")
+            }
+        return status
 
     @classmethod
     def _build_status_dot(cls, record: dict, date_label: str) -> dict:
@@ -1422,7 +1456,7 @@ class AutoSignIn(_PluginBase):
         today_history = self.__get_plugin_data(pkey="site", ckey=f"{type_str}-{today}")
 
         # 查询所有站点
-        all_sites = [site for site in self.sites.get_indexers() if not site.get("public")] + self.__custom_sites()
+        all_sites = [site for site in self.siteshelper.get_indexers() if not site.get("public")] + self.__custom_sites()
         # 过滤掉没有选中的站点
         if do_sites:
             do_sites = [site for site in all_sites if site.get("id") in do_sites]
@@ -1502,7 +1536,7 @@ class AutoSignIn(_PluginBase):
             # 失败｜错误
             failed_msg = []
 
-            sites = {site.get('name'): site.get("id") for site in self.sites.get_indexers() if not site.get("public")}
+            sites = {site.get('name'): site.get("id") for site in self.siteshelper.get_indexers() if not site.get("public")}
             for s in status:
                 site_name = s[0]
                 site_id = None
@@ -1615,7 +1649,7 @@ class AutoSignIn(_PluginBase):
         if apikey != settings.API_TOKEN:
             return schemas.Response(success=False, message="API密钥错误")
         domain = StringUtils.get_url_domain(url)
-        site_info = self.sites.get_indexer(domain)
+        site_info = self.siteshelper.get_indexer(domain)
         if not site_info:
             return schemas.Response(
                 success=True,

@@ -21,13 +21,13 @@ class _ISiteSigninHandler(metaclass=ABCMeta):
     """
 
     @classmethod
-    def match_url(self, url: str) -> bool:
+    def match_url(cls, url: str) -> bool:
         """
         根据站点Url判断是否匹配当前站点签到类
         :param url: 站点Url
         :return: 是否匹配，如匹配则会调用该类的signin方法
         """
-        netloc = self.get_netloc()
+        netloc = cls.get_netloc()
         if isinstance(netloc, list):
             return any(StringUtils.url_equal(url, s) for s in netloc)
         elif isinstance(netloc, str):
@@ -36,13 +36,13 @@ class _ISiteSigninHandler(metaclass=ABCMeta):
             return False
 
     @classmethod
-    def match_schema(self, value: str) -> bool:
+    def match_schema(cls, value: str) -> bool:
         """
         根据站点Schema判断是否匹配当前站点签到类
         :param value: 站点Schema
         :return: 是否匹配，如匹配则会调用该类的signin方法
         """
-        schema = self.get_schema()
+        schema = cls.get_schema()
         if isinstance(schema, list):
             return value in schema
         elif isinstance(schema, str):
