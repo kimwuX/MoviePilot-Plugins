@@ -80,7 +80,8 @@ class _ISiteSigninHandler(metaclass=ABCMeta):
                         proxy: bool,
                         render: bool,
                         token: str = None,
-                        timeout: int = None) -> str:
+                        timeout: int = None,
+                        check_code: bool = True) -> str:
         """
         获取页面源码
         :param url: Url地址
@@ -90,6 +91,7 @@ class _ISiteSigninHandler(metaclass=ABCMeta):
         :param render: 是否渲染
         :param token: JWT Token
         :param timeout: 请求超时时间，单位秒
+        :param check_code: 是否检查 HTTP 返回状态码
         :return: 页面源码，错误信息
         """
         if render:
@@ -123,31 +125,34 @@ class _ISiteSigninHandler(metaclass=ABCMeta):
                                    timeout=timeout or 20
                                    ).get_res(url=url, allow_redirects=False)
 
-            # 403-cloudflare, 468-safeline
-            if req is not None and req.status_code in (200, 500, 403, 468):
-                try:
-                    if req.content:
-                        # 1. 获取编码信息
-                        encoding = (RequestUtils.detect_encoding_from_html_response(req,
-                                                                                    settings.ENCODING_DETECTION_PERFORMANCE_MODE,
-                                                                                    settings.ENCODING_DETECTION_MIN_CONFIDENCE)
-                                    or req.apparent_encoding)
-                        # 2. 根据解析得到的编码进行解码
-                        try:
-                            # 尝试用推测的编码解码
-                            return req.content.decode(encoding)
-                        except Exception as e:
-                            logger.debug(f"Decoding failed, error message: {str(e)}")
-                            # 如果解码失败，尝试 fallback 使用 apparent_encoding
-                            req.encoding = req.apparent_encoding
-                            return req.text
-                    else:
-                        return req.text
-                except Exception as e:
-                    logger.debug(f"Error when getting decoded content: {str(e)}")
-                    return req.text
+            if req is None:
+                return ""
 
-            return ""
+            # 403-cloudflare, 468-safeline
+            if check_code and req.status_code not in (200, 500, 403, 468):
+                return ""
+
+            try:
+                if req.content:
+                    # 1. 获取编码信息
+                    encoding = (RequestUtils.detect_encoding_from_html_response(req,
+                                                                                settings.ENCODING_DETECTION_PERFORMANCE_MODE,
+                                                                                settings.ENCODING_DETECTION_MIN_CONFIDENCE)
+                                or req.apparent_encoding)
+                    # 2. 根据解析得到的编码进行解码
+                    try:
+                        # 尝试用推测的编码解码
+                        return req.content.decode(encoding)
+                    except Exception as e:
+                        logger.debug(f"Decoding failed, error message: {str(e)}")
+                        # 如果解码失败，尝试 fallback 使用 apparent_encoding
+                        req.encoding = req.apparent_encoding
+                        return req.text
+                else:
+                    return req.text
+            except Exception as e:
+                logger.debug(f"Error when getting decoded content: {str(e)}")
+                return req.text
 
     @staticmethod
     def sign_in_result(html_res: str, regexs: list) -> bool:

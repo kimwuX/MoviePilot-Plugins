@@ -75,7 +75,8 @@ class NexusPHP(_ISiteSigninHandler):
                                          ua=ua,
                                          proxy=proxy,
                                          render=render,
-                                         timeout=timeout)
+                                         timeout=timeout,
+                                         check_code=False)
 
         if not html_text:
             logger.warning(f"{site} 签到失败，请检查站点连通性")
