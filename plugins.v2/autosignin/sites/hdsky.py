@@ -35,8 +35,8 @@ class HDSky(_ISiteSigninHandler):
         """
         site = site_info.get("name")
         url = site_info.get("url")
-        site_cookie = site_info.get("cookie")
         ua = site_info.get("ua")
+        cookies = site_info.get("cookie")
         proxy = site_info.get("proxy")
         render = site_info.get("render")
         timeout = site_info.get("timeout")
@@ -47,8 +47,8 @@ class HDSky(_ISiteSigninHandler):
 
         # 判断今日是否已签到
         html_text = self.get_page_source(url=url,
-                                         cookie=site_cookie,
                                          ua=ua,
+                                         cookies=cookies,
                                          proxy=proxy,
                                          render=render,
                                          timeout=timeout)
@@ -72,8 +72,8 @@ class HDSky(_ISiteSigninHandler):
         while res_times <= 3:
             if res_times > 0:
                 logger.warning(f"{site} 验证码图片获取失败，正在进行第{res_times}次重试")
-            image_res = RequestUtils(cookies=site_cookie,
-                                     ua=ua,
+            image_res = RequestUtils(ua=ua,
+                                     cookies=cookies,
                                      proxies=settings.PROXY if proxy else None,
                                      timeout=timeout,
                                      referer=url,
@@ -95,7 +95,7 @@ class HDSky(_ISiteSigninHandler):
 
         # 完整验证码url
         img_url = urljoin(url, f'/image.php?action=regimage&imagehash={img_hash}')
-        logger.info(f"{site} 验证码链接：{img_url}")
+        logger.debug(f"{site} 验证码链接：{img_url}")
 
         # ocr识别多次，获取6位验证码
         times = 0
@@ -106,7 +106,7 @@ class HDSky(_ISiteSigninHandler):
                 logger.warning(f"{site} 验证码识别失败，正在进行第{times}次重试")
             # ocr二维码识别
             ocr_result = OcrHelper().get_captcha_text(image_url=img_url,
-                                                      cookie=site_cookie,
+                                                      cookie=cookies,
                                                       ua=ua)
             if ocr_result:
                 if len(ocr_result) == 6:
@@ -127,8 +127,8 @@ class HDSky(_ISiteSigninHandler):
             'imagestring': ocr_result
         }
         logger.debug(f"{site} 签到请求参数：{data}")
-        sign_res = RequestUtils(cookies=site_cookie,
-                                ua=ua,
+        sign_res = RequestUtils(ua=ua,
+                                cookies=cookies,
                                 proxies=settings.PROXY if proxy else None,
                                 timeout=timeout,
                                 referer=url

@@ -61,8 +61,8 @@ class NexusPHP(_ISiteSigninHandler):
         if not url:
             logger.warning(f"{site} 签到失败，未配置站点地址")
             return False, '签到失败，未配置站点地址'
-        site_cookie = site_info.get("cookie")
         ua = site_info.get("ua")
+        cookies = site_info.get("cookie")
         proxy = site_info.get("proxy")
         render = site_info.get("render")
         timeout = site_info.get("timeout")
@@ -71,8 +71,8 @@ class NexusPHP(_ISiteSigninHandler):
         signin_url = urljoin(url, "/attendance.php")
 
         html_text = self.get_page_source(url=signin_url,
-                                         cookie=site_cookie,
                                          ua=ua,
+                                         cookies=cookies,
                                          proxy=proxy,
                                          render=render,
                                          timeout=timeout,
@@ -141,7 +141,7 @@ class NexusPHP(_ISiteSigninHandler):
             logger.warning(f"{site} 模拟登录失败，未配置站点地址")
             return False, '模拟登录失败，未配置站点地址'
 
-        site_cookie = site_info.get("cookie")
+        cookies = site_info.get("cookie")
         ua = site_info.get("ua")
         proxy = site_info.get("proxy")
         render = site_info.get("render")
@@ -151,8 +151,8 @@ class NexusPHP(_ISiteSigninHandler):
         login_url = urljoin(url, "/index.php")
 
         html_text = self.get_page_source(url=login_url,
-                                         cookie=site_cookie,
                                          ua=ua,
+                                         cookies=cookies,
                                          proxy=proxy,
                                          render=render,
                                          timeout=timeout)

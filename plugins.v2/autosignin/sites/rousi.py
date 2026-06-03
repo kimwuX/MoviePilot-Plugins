@@ -41,7 +41,7 @@ class RousiPro(_ISiteSigninHandler):
         """
         site = site_info.get("name")
         url = site_info.get("url")
-        # site_cookie = site_info.get("cookie")
+        # cookies = site_info.get("cookie")
         ua = site_info.get("ua")
         proxy = site_info.get("proxy")
         # render = site_info.get("render")
@@ -65,7 +65,7 @@ class RousiPro(_ISiteSigninHandler):
 
         # 签到
         res_sign = RequestUtils(headers=headers,
-                                # cookies=site_cookie,
+                                # cookies=cookies,
                                 proxies=settings.PROXY if proxy else None,
                                 timeout=timeout,
                                 referer=url
@@ -97,7 +97,7 @@ class RousiPro(_ISiteSigninHandler):
         """
         site = site_info.get("name")
         url = site_info.get("url")
-        # site_cookie = site_info.get("cookie")
+        # cookies = site_info.get("cookie")
         ua = site_info.get("ua")
         proxy = site_info.get("proxy")
         # render = site_info.get("render")
@@ -118,7 +118,7 @@ class RousiPro(_ISiteSigninHandler):
 
         # 获取用户信息，更新最后访问时间
         res_info = RequestUtils(headers=headers,
-                                # cookies=site_cookie,
+                                # cookies=cookies,
                                 proxies=settings.PROXY if proxy else None,
                                 timeout=timeout,
                                 referer=url

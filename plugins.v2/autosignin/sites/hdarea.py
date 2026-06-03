@@ -34,7 +34,7 @@ class HDArea(_ISiteSigninHandler):
         """
         site = site_info.get("name")
         url = site_info.get("url")
-        site_cookie = site_info.get("cookie")
+        cookies = site_info.get("cookie")
         ua = site_info.get("ua")
         proxy = site_info.get("proxy")
         timeout = site_info.get("timeout")
@@ -46,8 +46,8 @@ class HDArea(_ISiteSigninHandler):
         data = {
             'action': 'sign_in'
         }
-        html_res = RequestUtils(cookies=site_cookie,
-                                ua=ua,
+        html_res = RequestUtils(ua=ua,
+                                cookies=cookies,
                                 proxies=settings.PROXY if proxy else None,
                                 timeout=timeout
                                 ).post_res(url=signin_url, data=data)

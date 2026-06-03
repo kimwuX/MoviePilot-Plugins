@@ -32,8 +32,8 @@ class HDCity(_ISiteSigninHandler):
         """
         site = site_info.get("name")
         url = site_info.get("url")
-        site_cookie = site_info.get("cookie")
         ua = site_info.get("ua")
+        cookies = site_info.get("cookie")
         proxy = site_info.get("proxy")
         render = site_info.get("render")
         timeout = site_info.get("timeout")
@@ -43,8 +43,8 @@ class HDCity(_ISiteSigninHandler):
 
         # 获取页面html
         html_text = self.get_page_source(url=signin_url,
-                                         cookie=site_cookie,
                                          ua=ua,
+                                         cookies=cookies,
                                          proxy=proxy,
                                          render=render,
                                          timeout=timeout)

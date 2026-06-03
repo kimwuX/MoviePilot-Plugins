@@ -36,8 +36,8 @@ class OpenCD(_ISiteSigninHandler):
         """
         site = site_info.get("name")
         url = site_info.get("url")
-        site_cookie = site_info.get("cookie")
         ua = site_info.get("ua")
+        cookies = site_info.get("cookie")
         proxy = site_info.get("proxy")
         render = site_info.get("render")
         timeout = site_info.get("timeout")
@@ -47,8 +47,8 @@ class OpenCD(_ISiteSigninHandler):
 
         # 判断今日是否已签到
         html_text = self.get_page_source(url=url,
-                                         cookie=site_cookie,
                                          ua=ua,
+                                         cookies=cookies,
                                          proxy=proxy,
                                          render=render,
                                          timeout=timeout)
@@ -66,8 +66,8 @@ class OpenCD(_ISiteSigninHandler):
 
         # 获取签到参数
         html_text = self.get_page_source(url=urljoin(url, "/plugin_sign-in.php"),
-                                         cookie=site_cookie,
                                          ua=ua,
+                                         cookies=cookies,
                                          proxy=proxy,
                                          render=render)
         if not html_text:
@@ -99,7 +99,7 @@ class OpenCD(_ISiteSigninHandler):
                 logger.warning(f"{site} 验证码识别失败，正在进行第{times}次重试")
             # ocr二维码识别
             ocr_result = OcrHelper().get_captcha_text(image_url=img_url,
-                                                      cookie=site_cookie,
+                                                      cookie=cookies,
                                                       ua=ua)
             if ocr_result:
                 if len(ocr_result) == 6:
@@ -119,8 +119,8 @@ class OpenCD(_ISiteSigninHandler):
             'imagestring': ocr_result
         }
         logger.debug(f"{site} 签到请求参数：{data}")
-        sign_res = RequestUtils(cookies=site_cookie,
-                                ua=ua,
+        sign_res = RequestUtils(ua=ua,
+                                cookies=cookies,
                                 proxies=settings.PROXY if proxy else None,
                                 timeout=timeout
                                 ).post_res(url=signin_url, data=data)

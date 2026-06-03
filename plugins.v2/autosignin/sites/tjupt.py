@@ -52,9 +52,9 @@ class TJUPT(_ISiteSigninHandler):
         """
         site = site_info.get("name")
         url = site_info.get("url")
-        site_cookie = site_info.get("cookie")
         # ua = site_info.get("ua")
         ua = settings.NORMAL_USER_AGENT
+        site_cookie = site_info.get("cookie")
         proxy = site_info.get("proxy")
         render = site_info.get("render")
         timeout = site_info.get("timeout")
@@ -64,8 +64,8 @@ class TJUPT(_ISiteSigninHandler):
 
         # 获取北洋签到页面html
         html_text = self.get_page_source(url=signin_url,
-                                         cookie=site_cookie,
                                          ua=ua,
+                                         cookie=site_cookie,
                                          proxy=proxy,
                                          render=render,
                                          timeout=timeout)
@@ -142,8 +142,8 @@ class TJUPT(_ISiteSigninHandler):
             logger.debug(f"{site} 查询本地已知答案失败：{str(e)}，继续请求豆瓣查询")
 
         # 获取签到图片hash
-        captcha_img_res = RequestUtils(cookies=site_cookie,
-                                       ua=ua,
+        captcha_img_res = RequestUtils(ua=ua,
+                                       cookies=site_cookie,
                                        proxies=settings.PROXY if proxy else None,
                                        timeout=timeout
                                        ).get_res(url=img_url)
@@ -230,8 +230,8 @@ class TJUPT(_ISiteSigninHandler):
         }
         logger.debug(f"{site} 签到请求参数：{data}")
         signin_url = urljoin(url, self._signin_path)
-        sign_res = RequestUtils(cookies=site_cookie,
-                                ua=ua,
+        sign_res = RequestUtils(ua=ua,
+                                cookies=site_cookie,
                                 proxies=settings.PROXY if proxy else None,
                                 timeout=timeout
                                 ).post_res(url=signin_url, data=data)

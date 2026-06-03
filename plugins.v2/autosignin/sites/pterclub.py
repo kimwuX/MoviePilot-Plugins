@@ -28,8 +28,8 @@ class PTerClub(_ISiteSigninHandler):
         """
         site = site_info.get("name")
         url = site_info.get("url")
-        site_cookie = site_info.get("cookie")
         ua = site_info.get("ua")
+        site_cookie = site_info.get("cookie")
         proxy = site_info.get("proxy")
         render = site_info.get("render")
         timeout = site_info.get("timeout")
@@ -39,8 +39,8 @@ class PTerClub(_ISiteSigninHandler):
 
         # 签到
         html_text = self.get_page_source(url=signin_url,
-                                         cookie=site_cookie,
                                          ua=ua,
+                                         cookie=site_cookie,
                                          proxy=proxy,
                                          render=render,
                                          timeout=timeout)

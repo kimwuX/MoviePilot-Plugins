@@ -75,43 +75,43 @@ class _ISiteSigninHandler(metaclass=ABCMeta):
 
     @staticmethod
     def get_page_source(url: str,
-                        cookie: str,
-                        ua: str,
-                        proxy: bool,
-                        render: bool,
+                        ua: str = None,
+                        cookies: str = None,
+                        proxy: bool = False,
+                        render: bool = False,
                         token: str = None,
                         timeout: int = None,
+                        referer: str = None,
                         check_code: bool = True) -> str:
         """
         获取页面源码
         :param url: Url地址
-        :param cookie: Cookie
-        :param ua: UA
+        :param ua: User-Agent字符串
+        :param cookies: Cookie字符串
         :param proxy: 是否使用代理
         :param render: 是否渲染
         :param token: JWT Token
         :param timeout: 请求超时时间，单位秒
+        :param referer: Referer头部信息
         :param check_code: 是否检查 HTTP 返回状态码
         :return: 页面源码，错误信息
         """
         if render:
             return PlaywrightHelper().get_page_source(url=url,
-                                                      cookies=cookie,
+                                                      cookies=cookies,
                                                       ua=ua,
                                                       proxies=settings.PROXY_SERVER if proxy else None,
                                                       timeout=timeout or 60)
         else:
+            headers = {}
             if token:
-                headers = {
-                    "Authorization": token,
-                    "User-Agent": ua
-                }
-            else:
-                headers = {
-                    "User-Agent": ua,
-                    "Cookie": cookie
-                }
+                headers["Authorization"] = token
+            if ua:
+                headers["User-Agent"] = ua
+            if referer:
+                headers["Referer"] = referer
             req = RequestUtils(headers=headers,
+                               cookies=cookies,
                                proxies=settings.PROXY if proxy else None,
                                timeout=timeout or 20
                                ).get_res(url=url, allow_redirects=False)
@@ -121,6 +121,7 @@ class _ISiteSigninHandler(metaclass=ABCMeta):
                 logger.info(f"重定向 {url} -> {req.headers['Location']}")
                 url = urljoin(url, req.headers['Location'])
                 req = RequestUtils(headers=headers,
+                                   cookies=cookies,
                                    proxies=settings.PROXY if proxy else None,
                                    timeout=timeout or 20
                                    ).get_res(url=url, allow_redirects=False)

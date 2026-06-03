@@ -48,8 +48,9 @@ class PT52(_ISiteSigninHandler):
         """
         site = site_info.get("name")
         url = site_info.get("url")
-        site_cookie = site_info.get("cookie")
-        ua = site_info.get("ua")
+        # ua = site_info.get("ua")
+        ua = settings.NORMAL_USER_AGENT
+        cookies = site_info.get("cookie")
         proxy = site_info.get("proxy")
         render = site_info.get("render")
         timeout = site_info.get("timeout")
@@ -59,11 +60,12 @@ class PT52(_ISiteSigninHandler):
 
         # 判断今日是否已签到
         html_text = self.get_page_source(url=signin_url,
-                                         cookie=site_cookie,
                                          ua=ua,
+                                         cookies=cookies,
                                          proxy=proxy,
                                          render=render,
-                                         timeout=timeout)
+                                         timeout=timeout,
+                                         referer=url)
 
         if not html_text:
             logger.warning(f"{site} 签到失败，请检查站点连通性")
@@ -86,6 +88,7 @@ class PT52(_ISiteSigninHandler):
 
         # 获取验证码
         # captchaInput.value = '4499'
+        captcha_code = None
         script_text = html.xpath("//input[@id='fake_captcha']/following-sibling::script[1]/text()")
         if script_text:
             mat = re.search(r"captchaInput\.value\s*=\s*'(\d+)'", script_text[0])
@@ -123,7 +126,7 @@ class PT52(_ISiteSigninHandler):
                                      captcha_code=captcha_code,
                                      site=site,
                                      url=url,
-                                     site_cookie=site_cookie,
+                                     cookies=cookies,
                                      ua=ua,
                                      proxy=proxy,
                                      timeout=timeout)
@@ -141,7 +144,7 @@ class PT52(_ISiteSigninHandler):
                  captcha_code: str,
                  site: str,
                  url: str,
-                 site_cookie: str,
+                 cookies: str,
                  ua: str,
                  proxy: bool,
                  timeout: int) -> Tuple[bool, str]:
@@ -169,10 +172,11 @@ class PT52(_ISiteSigninHandler):
         logger.debug(f"{site} 签到请求参数：{data}")
 
         signin_url = urljoin(url, self._signin_path)
-        sign_res = RequestUtils(cookies=site_cookie,
-                                ua=ua,
+        sign_res = RequestUtils(ua=ua,
+                                cookies=cookies,
                                 proxies=settings.PROXY if proxy else None,
-                                timeout=timeout
+                                timeout=timeout,
+                                referer=signin_url
                                 ).post_res(url=signin_url, data=data)
         if not sign_res or sign_res.status_code != 200:
             logger.warning(f"{site} 签到失败，签到接口请求失败")

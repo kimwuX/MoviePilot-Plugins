@@ -34,7 +34,7 @@ class HDChina(_ISiteSigninHandler):
         """
         site = site_info.get("name")
         url = site_info.get("url")
-        site_cookie = site_info.get("cookie")
+        cookies = site_info.get("cookie")
         ua = site_info.get("ua")
         proxy = site_info.get("proxy")
         timeout = site_info.get("timeout")
@@ -45,7 +45,7 @@ class HDChina(_ISiteSigninHandler):
         # 尝试解决瓷器cookie每天签到后过期,只保留hdchina=部分
         cookie = ""
         # 按照分号进行字符串拆分
-        sub_strs = site_cookie.split(";")
+        sub_strs = cookies.split(";")
         # 遍历每个子字符串
         for sub_str in sub_strs:
             if "hdchina=" in sub_str:
@@ -56,10 +56,10 @@ class HDChina(_ISiteSigninHandler):
             logger.warning(f"{site} 签到失败，Cookie已失效")
             return False, '签到失败，Cookie已失效'
 
-        site_cookie = cookie
+        cookies = cookie
         # 获取页面html
-        html_res = RequestUtils(cookies=site_cookie,
-                                ua=ua,
+        html_res = RequestUtils(ua=ua,
+                                cookies=cookies,
                                 proxies=settings.PROXY if proxy else None,
                                 timeout=timeout
                                 ).get_res(url=url)
@@ -72,7 +72,7 @@ class HDChina(_ISiteSigninHandler):
             return False, '签到失败，Cookie失效'
 
         # 获取新返回的cookie进行签到
-        site_cookie = ';'.join(['{}={}'.format(k, v) for k, v in html_res.cookies.get_dict().items()])
+        cookies = ';'.join(['{}={}'.format(k, v) for k, v in html_res.cookies.get_dict().items()])
 
         # 判断是否已签到
         html_res.encoding = "utf-8"
@@ -99,8 +99,8 @@ class HDChina(_ISiteSigninHandler):
         data = {
             'csrf': x_csrf
         }
-        sign_res = RequestUtils(cookies=site_cookie,
-                                ua=ua,
+        sign_res = RequestUtils(ua=ua,
+                                cookies=cookies,
                                 proxies=settings.PROXY if proxy else None,
                                 timeout=timeout
                                 ).post_res(url=signin_url, data=data)

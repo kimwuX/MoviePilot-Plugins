@@ -33,8 +33,8 @@ class Hares(_ISiteSigninHandler):
         """
         site = site_info.get("name")
         url = site_info.get("url")
-        site_cookie = site_info.get("cookie")
         ua = site_info.get("ua")
+        cookies = site_info.get("cookie")
         proxy = site_info.get("proxy")
         render = site_info.get("render")
         timeout = site_info.get("timeout")
@@ -44,8 +44,8 @@ class Hares(_ISiteSigninHandler):
 
         # 获取页面html
         html_text = self.get_page_source(url=url,
-                                         cookie=site_cookie,
                                          ua=ua,
+                                         cookies=cookies,
                                          proxy=proxy,
                                          render=render,
                                          timeout=timeout)
@@ -67,7 +67,7 @@ class Hares(_ISiteSigninHandler):
             "User-Agent": ua
         }
         sign_res = RequestUtils(headers=headers,
-                                cookies=site_cookie,
+                                cookies=cookies,
                                 proxies=settings.PROXY if proxy else None,
                                 timeout=timeout
                                 ).get_res(url=signin_url)
