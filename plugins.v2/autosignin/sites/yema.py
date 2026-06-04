@@ -30,7 +30,7 @@ class YemaPT(_ISiteSigninHandler):
         """
         site = site_info.get("name")
         url = site_info.get("url")
-        site_cookie = site_info.get("cookie")
+        cookies = site_info.get("cookie")
         ua = site_info.get("ua")
         proxy = site_info.get("proxy")
         # render = site_info.get("render")
@@ -48,7 +48,7 @@ class YemaPT(_ISiteSigninHandler):
 
         # 签到记录
         sign_dict = RequestUtils(headers=headers,
-                                 cookies=site_cookie,
+                                 cookies=cookies,
                                  proxies=settings.PROXY if proxy else None,
                                  timeout=timeout,
                                  referer=url
@@ -75,7 +75,7 @@ class YemaPT(_ISiteSigninHandler):
 
         # 签到
         res_dict = RequestUtils(headers=headers,
-                                cookies=site_cookie,
+                                cookies=cookies,
                                 proxies=settings.PROXY if proxy else None,
                                 timeout=timeout,
                                 referer=url
@@ -100,7 +100,7 @@ class YemaPT(_ISiteSigninHandler):
         """
         site = site_info.get("name")
         url = site_info.get("url")
-        site_cookie = site_info.get("cookie")
+        cookies = site_info.get("cookie")
         ua = site_info.get("ua")
         proxy = site_info.get("proxy")
         # render = site_info.get("render")
@@ -116,7 +116,7 @@ class YemaPT(_ISiteSigninHandler):
 
         # 获取用户信息，更新最后访问时间
         res_dict = RequestUtils(headers=headers,
-                                cookies=site_cookie,
+                                cookies=cookies,
                                 proxies=settings.PROXY if proxy else None,
                                 timeout=timeout,
                                 referer=url

@@ -54,7 +54,7 @@ class TJUPT(_ISiteSigninHandler):
         url = site_info.get("url")
         # ua = site_info.get("ua")
         ua = settings.NORMAL_USER_AGENT
-        site_cookie = site_info.get("cookie")
+        cookies = site_info.get("cookie")
         proxy = site_info.get("proxy")
         render = site_info.get("render")
         timeout = site_info.get("timeout")
@@ -65,7 +65,7 @@ class TJUPT(_ISiteSigninHandler):
         # 获取北洋签到页面html
         html_text = self.get_page_source(url=signin_url,
                                          ua=ua,
-                                         cookie=site_cookie,
+                                         cookies=cookies,
                                          proxy=proxy,
                                          render=render,
                                          timeout=timeout)
@@ -132,7 +132,7 @@ class TJUPT(_ISiteSigninHandler):
                                              answer=answer,
                                              site=site,
                                              url=url,
-                                             site_cookie=site_cookie,
+                                             cookies=cookies,
                                              ua=ua,
                                              proxy=proxy,
                                              timeout=timeout)
@@ -143,7 +143,7 @@ class TJUPT(_ISiteSigninHandler):
 
         # 获取签到图片hash
         captcha_img_res = RequestUtils(ua=ua,
-                                       cookies=site_cookie,
+                                       cookies=cookies,
                                        proxies=settings.PROXY if proxy else None,
                                        timeout=timeout
                                        ).get_res(url=img_url)
@@ -200,7 +200,7 @@ class TJUPT(_ISiteSigninHandler):
                                              answer=answer,
                                              site=site,
                                              url=url,
-                                             site_cookie=site_cookie,
+                                             cookies=cookies,
                                              ua=ua,
                                              proxy=proxy,
                                              timeout=timeout,
@@ -215,7 +215,7 @@ class TJUPT(_ISiteSigninHandler):
                  answer: str,
                  site: str,
                  url: str,
-                 site_cookie: str,
+                 cookies: str,
                  ua: str,
                  proxy: bool,
                  timeout: int,
@@ -231,7 +231,7 @@ class TJUPT(_ISiteSigninHandler):
         logger.debug(f"{site} 签到请求参数：{data}")
         signin_url = urljoin(url, self._signin_path)
         sign_res = RequestUtils(ua=ua,
-                                cookies=site_cookie,
+                                cookies=cookies,
                                 proxies=settings.PROXY if proxy else None,
                                 timeout=timeout
                                 ).post_res(url=signin_url, data=data)

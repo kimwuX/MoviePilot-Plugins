@@ -37,7 +37,7 @@ class TTG(_ISiteSigninHandler):
         site = site_info.get("name")
         url = site_info.get("url")
         ua = site_info.get("ua")
-        site_cookie = site_info.get("cookie")
+        cookies = site_info.get("cookie")
         proxy = site_info.get("proxy")
         render = site_info.get("render")
         timeout = site_info.get("timeout")
@@ -48,7 +48,7 @@ class TTG(_ISiteSigninHandler):
         # 获取页面html
         html_text = self.get_page_source(url=url,
                                          ua=ua,
-                                         cookie=site_cookie,
+                                         cookies=cookies,
                                          proxy=proxy,
                                          render=render,
                                          timeout=timeout)
@@ -78,7 +78,7 @@ class TTG(_ISiteSigninHandler):
         }
         # 签到
         sign_res = RequestUtils(ua=ua,
-                                cookies=site_cookie,
+                                cookies=cookies,
                                 proxies=settings.PROXY if proxy else None,
                                 timeout=timeout
                                 ).post_res(url=signin_url, data=data)

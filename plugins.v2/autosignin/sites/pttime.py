@@ -34,7 +34,7 @@ class PTTime(_ISiteSigninHandler):
         site = site_info.get("name")
         url = site_info.get("url")
         ua = site_info.get("ua")
-        site_cookie = site_info.get("cookie")
+        cookies = site_info.get("cookie")
         proxy = site_info.get("proxy")
         render = site_info.get("render")
         timeout = site_info.get("timeout")
@@ -46,7 +46,7 @@ class PTTime(_ISiteSigninHandler):
         # 签到返回：<html><head></head><body>签到成功</body></html>
         html_text = self.get_page_source(url=signin_url,
                                          ua=ua,
-                                         cookie=site_cookie,
+                                         cookies=cookies,
                                          proxy=proxy,
                                          render=render,
                                          timeout=timeout)
