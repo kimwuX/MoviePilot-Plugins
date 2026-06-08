@@ -156,13 +156,13 @@ class _ISiteSigninHandler(metaclass=ABCMeta):
                 return req.text
 
     @staticmethod
-    def sign_in_result(html_res: str, regexs: list) -> bool:
+    def test_re(text: str, regexs: list, flags: int = 0) -> bool:
         """
-        判断是否签到成功
+        正则表达式测试
         """
-        html_text = re.sub(r"#\d+", "", re.sub(r"\d+px", "", html_res))
+        sub_text = re.sub(r"#\d+", "", re.sub(r"\d+px", "", text))
         for regex in regexs:
-            if re.search(str(regex), html_text):
+            if re.search(str(regex), sub_text, flags):
                 return True
         return False
 

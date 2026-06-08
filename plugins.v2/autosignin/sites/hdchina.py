@@ -76,17 +76,15 @@ class HDChina(_ISiteSigninHandler):
 
         # 判断是否已签到
         html_res.encoding = "utf-8"
-        sign_status = self.sign_in_result(html_res=html_res.text,
-                                          regexs=self._sign_regex)
-        if sign_status:
+        if self.test_re(text=html_res.text, regexs=self._sign_regex):
             logger.info(f"{site} 今日已签到")
             return True, '今日已签到'
 
         # 没有签到则解析html
         html = etree.HTML(html_res.text)
-
         if not html:
-            return False, '签到失败'
+            logger.warning(f"{site} 签到失败，无法解析：\n{html_res.text}")
+            return False, f'签到失败，无法解析文档'
 
         # x_csrf
         x_csrf = html.xpath("//meta[@name='x-csrf']/@content")[0]

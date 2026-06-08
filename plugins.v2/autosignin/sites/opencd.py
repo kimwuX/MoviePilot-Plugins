@@ -77,7 +77,8 @@ class OpenCD(_ISiteSigninHandler):
         # 没有签到则解析html
         html = etree.HTML(html_text)
         if not html:
-            return False, f'签到失败，无法解析：\n{html_text}'
+            logger.warning(f"{site} 签到失败，无法解析：\n{html_text}")
+            return False, f'签到失败，无法解析文档'
 
         # 签到参数
         img_url = html.xpath('//form[@id="frmSignin"]//img/@src')[0]

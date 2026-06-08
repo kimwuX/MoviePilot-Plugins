@@ -56,9 +56,9 @@ class ZhuQue(_ISiteSigninHandler):
             return False, '模拟登录失败，Cookie已失效'
 
         html = etree.HTML(html_text)
-
         if not html:
-            return False, '模拟登录失败'
+            logger.warning(f"{site} 模拟登录失败，无法解析：\n{html_text}")
+            return False, f'模拟登录失败，无法解析文档'
 
         # 释放技能
         msg = '失败'
@@ -78,14 +78,12 @@ class ZhuQue(_ISiteSigninHandler):
                                      proxies=settings.PROXY if proxy else None,
                                      timeout=timeout
                                      ).post_res(url=signin_url, json=data)
-            if not skill_res or skill_res.status_code != 200:
-                logger.warning(f"模拟登录失败，释放技能失败")
+            if skill_res and skill_res.status_code == 200:
+                # '{"status":200,"data":{"code":"FIRE_GENSHIN_CHARACTER_MAGIC_SUCCESS","bonus":0}}'
+                skill_dict = json.loads(skill_res.text)
+                if skill_dict['status'] == 200:
+                    bonus = int(skill_dict['data']['bonus'])
+                    msg = f'成功，获得{bonus}魔力'
 
-            # '{"status":200,"data":{"code":"FIRE_GENSHIN_CHARACTER_MAGIC_SUCCESS","bonus":0}}'
-            skill_dict = json.loads(skill_res.text)
-            if skill_dict['status'] == 200:
-                bonus = int(skill_dict['data']['bonus'])
-                msg = f'成功，获得{bonus}魔力'
-
-        logger.info(f'【{site}】模拟登录成功，技能释放{msg}')
+        logger.info(f'{site} 模拟登录成功，技能释放{msg}')
         return True, f'模拟登录成功，技能释放{msg}'

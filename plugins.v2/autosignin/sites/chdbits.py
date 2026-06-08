@@ -76,16 +76,15 @@ class CHDBits(_ISiteSigninHandler):
             logger.warning(f"{site} 签到失败，Cookie已失效")
             return False, '签到失败，Cookie已失效'
 
-        sign_status = self.sign_in_result(html_res=html_text,
-                                          regexs=self._sign_regex)
-        if sign_status:
+        if self.test_re(text=html_text, regexs=self._sign_regex):
             logger.info(f"{site} 今日已签到")
             return True, '今日已签到'
 
         # 没有签到则解析html
         html = etree.HTML(html_text)
         if not html:
-            return False, f'签到失败，无法解析：\n{html_text}'
+            logger.warning(f"{site} 签到失败，无法解析：\n{html_text}")
+            return False, f'签到失败，无法解析文档'
 
         # 获取页面问题、答案
         questionid = html.xpath("//input[@name='questionid']/@value")[0]
@@ -161,15 +160,11 @@ class CHDBits(_ISiteSigninHandler):
             return False, '签到失败，签到接口请求失败'
 
         # 判断是否签到成功
-        sign_status = self.sign_in_result(html_res=sign_res.text,
-                                          regexs=self._success_regex)
-        if sign_status:
+        if self.test_re(text=sign_res.text, regexs=self._success_regex):
             logger.info(f"{site} 签到成功")
             return True, '签到成功'
         else:
-            sign_status = self.sign_in_result(html_res=sign_res.text,
-                                              regexs=self._sign_regex)
-            if sign_status:
+            if self.test_re(text=sign_res.text, regexs=self._sign_regex):
                 logger.info(f"{site} 今日已签到")
                 return True, '今日已签到'
 

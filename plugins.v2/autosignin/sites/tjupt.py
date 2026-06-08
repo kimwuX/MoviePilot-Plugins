@@ -79,16 +79,15 @@ class TJUPT(_ISiteSigninHandler):
             logger.warning(f"{site} 签到失败，Cookie已失效")
             return False, '签到失败，Cookie已失效'
 
-        sign_status = self.sign_in_result(html_res=html_text,
-                                          regexs=self._sign_regex)
-        if sign_status:
+        if self.test_re(text=html_text, regexs=self._sign_regex):
             logger.info(f"{site} 今日已签到")
             return True, '今日已签到'
 
         # 没有签到则解析html
         html = etree.HTML(html_text)
         if not html:
-            return False, f'签到失败，无法解析：\n{html_text}'
+            logger.warning(f"{site} 签到失败，无法解析：\n{html_text}")
+            return False, f'签到失败，无法解析文档'
 
         img_url = html.xpath('//table[@class="captcha"]//img/@src')[0]
 
@@ -240,9 +239,7 @@ class TJUPT(_ISiteSigninHandler):
             return False, '签到失败，签到接口请求失败'
 
         # 获取签到后返回html，判断是否签到成功
-        sign_status = self.sign_in_result(html_res=sign_res.text,
-                                          regexs=self._succeed_regex)
-        if sign_status:
+        if self.test_re(text=sign_res.text, regexs=self._succeed_regex):
             if exits_answers is not None and img_name is not None:
                 # 签到成功写入本地文件
                 self.__write_local_answer(exits_answers=exits_answers,

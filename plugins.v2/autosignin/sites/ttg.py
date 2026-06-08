@@ -61,9 +61,7 @@ class TTG(_ISiteSigninHandler):
             return False, '签到失败，Cookie已失效'
 
         # 判断是否已签到
-        sign_status = self.sign_in_result(html_res=html_text,
-                                          regexs=self._sign_regex)
-        if sign_status:
+        if self.test_re(text=html_text, regexs=self._sign_regex):
             logger.info(f"{site} 今日已签到")
             return True, '今日已签到'
 
