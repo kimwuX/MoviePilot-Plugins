@@ -104,9 +104,10 @@ class NexusPHP(_ISiteSigninHandler):
             return False, '签到失败，未配置站点地址'
 
         logger.info(f"开始以 {self.__class__.__name__} 通用模型签到 {site}")
+        usercp_url = urljoin(url, "/usercp.php")
         signin_url = urljoin(url, "/attendance.php")
 
-        html_text = self.get_page_source(url=url,
+        html_text = self.get_page_source(url=usercp_url,
                                          ua=ua,
                                          cookies=cookies,
                                          proxy=proxy,
