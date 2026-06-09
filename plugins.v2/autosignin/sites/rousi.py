@@ -21,7 +21,8 @@ class RousiPro(_ISiteSigninHandler):
         """
         return "rousi.pro"
 
-    def get_json(self, response) -> Optional[dict]:
+    @staticmethod
+    def get_json(response) -> Optional[dict]:
         if response is not None:
             try:
                 data = response.json()
@@ -74,19 +75,26 @@ class RousiPro(_ISiteSigninHandler):
         if res_sign is None:
             logger.warning(f"{site} 签到失败，请检查站点连通性")
             return False, '签到失败，请检查站点连通性'
-        elif res_sign.status_code == 400:
-            logger.info(f"{site} 今日已签到")
-            return True, '今日已签到'
-        elif res_sign.status_code == 401:
+
+        dict_sign = self.get_json(res_sign)
+        if not dict_sign:
+            logger.warning(f"{site} 签到失败，接口返回：\n{res_sign.text}")
+            return False, '签到失败，请查看日志'
+
+        if dict_sign.get("code") == 101:
             logger.warning(f"{site} 签到失败，Token已失效")
             return False, '签到失败，Token已失效'
-        elif res_sign.status_code == 200:
-            dict_sign = self.get_json(res_sign)
-            if dict_sign and dict_sign.get("bonus"):
-                logger.info(f'{site} 签到成功，获得{dict_sign.get("bonus")}魔力值')
-                return True, "签到成功"
 
-        logger.warning(f"{site} 签到失败，接口返回：\n{res_sign.text}")
+        if dict_sign.get("code") == 1:
+            logger.info(f"{site} 今日已签到")
+            return True, '今日已签到'
+
+        if dict_sign.get("code") == 0:
+            bonus = dict_sign.get("data", {}).get("bonus")
+            logger.info(f'{site} 签到成功，获得{bonus}魔力值')
+            return True, "签到成功"
+
+        logger.warning(f"{site} 签到失败，{dict_sign.get('message')}")
         return False, '签到失败，请查看日志'
 
     def login(self, site_info: CommentedMap) -> Tuple[bool, str]:
@@ -127,14 +135,19 @@ class RousiPro(_ISiteSigninHandler):
         if res_info is None:
             logger.warning(f"{site} 模拟登录失败，请检查站点连通性")
             return False, '模拟登录失败，请检查站点连通性'
-        elif res_info.status_code == 401:
+
+        dict_info = self.get_json(res_info)
+        if not dict_info:
+            logger.warning(f"{site} 模拟登录失败，接口返回：\n{res_info.text}")
+            return False, '模拟登录失败，请查看日志'
+
+        if dict_info.get("code") == 101:
             logger.warning(f"{site} 模拟登录失败，Token已失效")
             return False, '模拟登录失败，Token已失效'
-        elif res_info.status_code == 200:
-            dict_info = self.get_json(res_info)
-            if dict_info and dict_info.get("passkey"):
-                logger.info(f"{site} 模拟登录成功")
-                return True, "模拟登录成功"
 
-        logger.warning(f"{site} 模拟登录失败，接口返回：\n{res_info.text}")
+        if dict_info.get("code") == 0:
+            logger.info(f"{site} 模拟登录成功")
+            return True, "模拟登录成功"
+
+        logger.warning(f"{site} 模拟登录失败，{dict_info.get('message')}")
         return False, '模拟登录失败，请查看日志'
