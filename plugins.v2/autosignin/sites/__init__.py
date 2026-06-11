@@ -1,5 +1,5 @@
-# -*- coding: utf-8 -*-
 import re
+import time
 from abc import ABCMeta, abstractmethod
 from pathlib import Path
 from typing import Tuple
@@ -9,6 +9,7 @@ from ruamel.yaml import CommentedMap
 
 from app.core.config import settings
 from app.helper.browser import PlaywrightHelper
+from app.helper.ocr import OcrHelper
 from app.log import logger
 from app.utils.http import RequestUtils
 from app.utils.string import StringUtils
@@ -154,6 +155,45 @@ class _ISiteSigninHandler(metaclass=ABCMeta):
             except Exception as e:
                 logger.debug(f"Error when getting decoded content: {str(e)}")
                 return req.text
+
+    @staticmethod
+    def img_ocr(site: str = None,
+                image_url: str = None,
+                image_b64: str = None,
+                cookie: str = None,
+                ua: str = None,
+                length: int = 6,
+                max_retry: int = 3) -> str:
+        """
+        验证码图片识别
+        :param site: 站点名称
+        :param image_url: 图片地址
+        :param image_b64: 图片base64，跳过图片地址下载
+        :param cookie: 下载图片使用的cookie
+        :param ua: 下载图片使用的ua
+        :param length: 验证码长度
+        :param max_retry: 最大重试次数
+        :return: 验证码识别结果
+        """
+        result = None
+        count = 0
+        while count <= max_retry:
+            if count > 0:
+                # 休眠3s
+                time.sleep(3)
+                logger.warning(f"{site} 验证码识别失败，正在进行第{count}次重试")
+            # ocr二维码识别
+            result = OcrHelper().get_captcha_text(image_url=image_url,
+                                                  image_b64=image_b64,
+                                                  cookie=cookie,
+                                                  ua=ua)
+            if result:
+                if len(result) == length:
+                    logger.info(f"{site} 验证码识别成功：{result}")
+                    break
+                logger.warning(f"{site} 验证码识别错误：{result}")
+            count += 1
+        return result
 
     @staticmethod
     def test_re(text: str, regexs: list, flags: int = 0) -> bool:

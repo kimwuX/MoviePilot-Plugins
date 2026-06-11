@@ -6,7 +6,6 @@ from urllib.parse import urljoin
 from ruamel.yaml import CommentedMap
 
 from app.core.config import settings
-from app.helper.ocr import OcrHelper
 from app.log import logger
 from app.plugins.autosignin.sites import _ISiteSigninHandler
 from app.utils.http import RequestUtils
@@ -69,6 +68,7 @@ class HDSky(_ISiteSigninHandler):
         img_hash = None
         while res_times <= 3:
             if res_times > 0:
+                time.sleep(1)
                 logger.warning(f"{site} 验证码图片获取失败，正在进行第{res_times}次重试")
             image_res = RequestUtils(ua=ua,
                                      cookies=cookies,
@@ -85,7 +85,6 @@ class HDSky(_ISiteSigninHandler):
                     img_hash = image_json["code"]
                     break
                 res_times += 1
-                time.sleep(1)
 
         if not img_hash:
             logger.warning(f"{site} 签到失败，获取签到参数失败")
@@ -95,25 +94,11 @@ class HDSky(_ISiteSigninHandler):
         img_url = urljoin(url, f'/image.php?action=regimage&imagehash={img_hash}')
         logger.debug(f"{site} 验证码链接：{img_url}")
 
-        # ocr识别多次，获取6位验证码
-        times = 0
-        ocr_result = None
-        # 识别几次
-        while times <= 3:
-            if times > 0:
-                logger.warning(f"{site} 验证码识别失败，正在进行第{times}次重试")
-            # ocr二维码识别
-            ocr_result = OcrHelper().get_captcha_text(image_url=img_url,
-                                                      cookie=cookies,
-                                                      ua=ua)
-            if ocr_result:
-                if len(ocr_result) == 6:
-                    logger.info(f"{site} 验证码识别成功：{ocr_result}")
-                    break
-                logger.warning(f"{site} 验证码识别错误：{ocr_result}")
-            times += 1
-            time.sleep(1)
-
+        # 验证码识别
+        ocr_result = self.img_ocr(site=site,
+                                  image_url=img_url,
+                                  cookie=cookies,
+                                  ua=ua)
         if not ocr_result or len(ocr_result) != 6:
             logger.warning(f'{site} 签到失败，验证码识别失败')
             return False, '签到失败，验证码识别失败'
@@ -125,6 +110,8 @@ class HDSky(_ISiteSigninHandler):
             'imagestring': ocr_result
         }
         logger.debug(f"{site} 签到请求参数：{data}")
+
+        # 签到
         sign_res = RequestUtils(ua=ua,
                                 cookies=cookies,
                                 proxies=settings.PROXY if proxy else None,

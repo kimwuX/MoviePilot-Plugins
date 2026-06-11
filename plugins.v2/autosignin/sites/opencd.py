@@ -1,5 +1,4 @@
 import json
-import time
 from typing import Tuple
 from urllib.parse import urljoin
 
@@ -7,7 +6,6 @@ from lxml import etree
 from ruamel.yaml import CommentedMap
 
 from app.core.config import settings
-from app.helper.ocr import OcrHelper
 from app.log import logger
 from app.plugins.autosignin.sites import _ISiteSigninHandler
 from app.utils.http import RequestUtils
@@ -81,45 +79,36 @@ class OpenCD(_ISiteSigninHandler):
             return False, f'签到失败，无法解析文档'
 
         # 签到参数
-        img_url = html.xpath('//form[@id="frmSignin"]//img/@src')[0]
-        img_hash = html.xpath('//form[@id="frmSignin"]//input[@name="imagehash"]/@value')[0]
-        if not img_url or not img_hash:
+        img_capt = html.xpath('//form[@id="frmSignin"]//img/@src')
+        img_hash = html.xpath('//form[@id="frmSignin"]//input[@name="imagehash"]/@value')
+        if not img_capt or not img_hash:
             logger.warning(f"{site} 签到失败，获取签到参数失败")
             return False, '签到失败，获取签到参数失败'
 
+        logger.debug(f"{site} img_capt: {img_capt}")
+        logger.debug(f"{site} img_hash: {img_hash}")
+
         # 完整验证码url
-        img_url = urljoin(url, img_url)
+        img_url = urljoin(url, img_capt[0])
         logger.debug(f"{site} 验证码链接：{img_url}")
 
-        # ocr识别多次，获取6位验证码
-        times = 0
-        ocr_result = None
-        # 识别几次
-        while times <= 3:
-            if times > 0:
-                logger.warning(f"{site} 验证码识别失败，正在进行第{times}次重试")
-            # ocr二维码识别
-            ocr_result = OcrHelper().get_captcha_text(image_url=img_url,
-                                                      cookie=cookies,
-                                                      ua=ua)
-            if ocr_result:
-                if len(ocr_result) == 6:
-                    logger.info(f"{site} 验证码识别成功：{ocr_result}")
-                    break
-                logger.warning(f"{site} 验证码识别错误：{ocr_result}")
-            times += 1
-            time.sleep(1)
-
+        # 验证码识别
+        ocr_result = self.img_ocr(site=site,
+                                  image_url=img_url,
+                                  cookie=cookies,
+                                  ua=ua)
         if not ocr_result or len(ocr_result) != 6:
             logger.warning(f'{site} 签到失败，验证码识别失败')
             return False, '签到失败，验证码识别失败'
 
         # 组装请求参数
         data = {
-            'imagehash': img_hash,
+            'imagehash': img_hash[0],
             'imagestring': ocr_result
         }
         logger.debug(f"{site} 签到请求参数：{data}")
+
+        # 签到
         sign_res = RequestUtils(ua=ua,
                                 cookies=cookies,
                                 proxies=settings.PROXY if proxy else None,

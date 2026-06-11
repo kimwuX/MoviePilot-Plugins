@@ -1,4 +1,3 @@
-import re
 from typing import Tuple
 from urllib.parse import urljoin
 
@@ -11,26 +10,21 @@ from app.plugins.autosignin.sites import _ISiteSigninHandler
 from app.utils.http import RequestUtils
 
 
-class PT52(_ISiteSigninHandler):
+class LJD(_ISiteSigninHandler):
     """
-    52pt签到
+    垃圾堆签到
     """
 
-    # 已签到
-    _sign_regex = ['今天已经签过到了']
     # 签到成功
-    # 连续签到 84 天，获得 127 魔力值
-    _success_regex = [r'连续签到\s*\d+\s*天，获得\s*\d+\s*魔力值']
-
-    # 签到路径
-    _signin_path = "/52simplebakatest.php"
+    # 这是您的第 <b>1</b> 次签到，已连续签到 <b>1</b> 天，本次签到获得 <b>10</b> 个魔力值。
+    _success_regex = [r'连续签到\s*\S*?\d+\S*?\s*天，本次签到获得']
 
     @staticmethod
     def get_netloc():
         """
         获取当前站点域名，可以是单个或者多个域名
         """
-        return "52pt.site"
+        return "pt.lajidui.top"
 
     def signin(self, site_info: CommentedMap) -> Tuple[bool, str]:
         """
@@ -40,24 +34,21 @@ class PT52(_ISiteSigninHandler):
         """
         site = site_info.get("name")
         url = site_info.get("url")
-        # ua = site_info.get("ua")
-        ua = settings.NORMAL_USER_AGENT
+        ua = site_info.get("ua")
         cookies = site_info.get("cookie")
         proxy = site_info.get("proxy")
         render = site_info.get("render")
         timeout = site_info.get("timeout")
 
         logger.info(f"开始以 {self.__class__.__name__} 模型签到 {site}")
-        signin_url = urljoin(url, self._signin_path)
+        signin_url = urljoin(url, "/attendance.php")
 
-        # 判断今日是否已签到
         html_text = self.get_page_source(url=signin_url,
                                          ua=ua,
                                          cookies=cookies,
                                          proxy=proxy,
                                          render=render,
-                                         timeout=timeout,
-                                         referer=url)
+                                         timeout=timeout)
 
         if not html_text:
             logger.warning(f"{site} 签到失败，请检查站点连通性")
@@ -67,7 +58,8 @@ class PT52(_ISiteSigninHandler):
             logger.warning(f"{site} 签到失败，Cookie已失效")
             return False, '签到失败，Cookie已失效'
 
-        if self.test_re(text=html_text, regexs=self._sign_regex):
+        # 已签到
+        if self.test_re(text=html_text, regexs=self._success_regex):
             logger.info(f"{site} 今日已签到")
             return True, '今日已签到'
 
@@ -77,35 +69,33 @@ class PT52(_ISiteSigninHandler):
             logger.warning(f"{site} 签到失败，无法解析：\n{html_text}")
             return False, f'签到失败，无法解析文档'
 
-        # 获取验证码
-        # captchaInput.value = '4499'
-        mat_captcha = None
-        script_text = html.xpath("//td[@id='outer']/script/text()")
-        if script_text:
-            mat_captcha = re.search(r"captchaInput\.value\s*=\s*'(\d+)'", script_text[0])
-        if not mat_captcha:
-            logger.warning(f"{site} 签到失败，获取sign_captcha参数失败")
+        # 签到参数
+        img_capt = html.xpath('//img[@alt="CAPTCHA"]/@src')
+        img_hash = html.xpath('//input[@name="imagehash"]/@value')
+        if not img_capt or not img_hash:
+            logger.warning(f"{site} 签到失败，获取签到参数失败")
             return False, '签到失败，获取签到参数失败'
 
-        sign_token = html.xpath("//input[@name='sign_token']/@value")
-        if not sign_token:
-            logger.warning(f"{site} 签到失败，获取sign_token参数失败")
-            return False, '签到失败，获取签到参数失败'
+        logger.debug(f"{site} img_capt: {img_capt}")
+        logger.debug(f"{site} img_hash: {img_hash}")
 
-        sign_submit = html.xpath("//input[@name='sign_submit']/@value")
-        if not sign_submit:
-            logger.warning(f"{site} 签到失败，获取sign_submit参数失败")
-            return False, '签到失败，获取签到参数失败'
+        # 完整验证码url
+        img_url = urljoin(url, img_capt[0])
+        logger.debug(f"{site} 验证码链接：{img_url}")
 
-        logger.debug(f'{site} mat_captcha: {mat_captcha.group()}')
-        logger.debug(f'{site} sign_token: {sign_token}')
-        logger.debug(f'{site} sign_submit: {sign_submit}')
+        # 验证码识别
+        ocr_result = self.img_ocr(site=site,
+                                  image_url=img_url,
+                                  cookie=cookies,
+                                  ua=ua)
+        if not ocr_result or len(ocr_result) != 6:
+            logger.warning(f'{site} 签到失败，验证码识别失败')
+            return False, '签到失败，验证码识别失败'
 
         # 组装请求参数
         data = {
-            'sign_captcha': mat_captcha[1],
-            'sign_token': sign_token[0],
-            'sign_submit': sign_submit[0]
+            'imagehash': img_hash[0],
+            'imagestring': ocr_result
         }
         logger.debug(f"{site} 签到请求参数：{data}")
 
@@ -113,8 +103,7 @@ class PT52(_ISiteSigninHandler):
         sign_res = RequestUtils(ua=ua,
                                 cookies=cookies,
                                 proxies=settings.PROXY if proxy else None,
-                                timeout=timeout,
-                                referer=signin_url
+                                timeout=timeout
                                 ).post_res(url=signin_url, data=data)
         if not sign_res or sign_res.status_code != 200:
             logger.warning(f"{site} 签到失败，签到接口请求失败")
@@ -124,10 +113,6 @@ class PT52(_ISiteSigninHandler):
         if self.test_re(text=sign_res.text, regexs=self._success_regex):
             logger.info(f"{site} 签到成功")
             return True, '签到成功'
-        else:
-            if self.test_re(text=sign_res.text, regexs=self._sign_regex):
-                logger.info(f"{site} 今日已签到")
-                return True, '今日已签到'
 
         logger.warning(f"{site} 签到失败，接口返回：\n{sign_res.text}")
         return False, '签到失败，请查看日志'
