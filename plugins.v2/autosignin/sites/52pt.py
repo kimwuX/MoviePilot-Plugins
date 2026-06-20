@@ -24,7 +24,7 @@ class PT52(_ISiteSigninHandler):
     _success_regex = [r'连续签到\s*\d+\s*天，获得\s*\d+\s*魔力值']
 
     # 签到路径
-    _signin_path = "/52bakatest.php"
+    _signin_path = "/52bakatest0618.php"
 
     @staticmethod
     def get_netloc():
@@ -49,8 +49,7 @@ class PT52(_ISiteSigninHandler):
         timeout = site_info.get("timeout")
 
         logger.info(f"开始以 {self.__class__.__name__} 模型签到 {site}")
-        signin_url = urljoin(url, self.add_date_string(self._signin_path))
-        logger.info(f"签到链接：{signin_url}")
+        signin_url = urljoin(url, self._signin_path)
 
         # 判断今日是否已签到
         html_text = self.get_page_source(url=signin_url,
@@ -133,24 +132,3 @@ class PT52(_ISiteSigninHandler):
 
         logger.warning(f"{site} 签到失败，接口返回：\n{sign_res.text}")
         return False, '签到失败，请查看日志'
-
-    @staticmethod
-    def add_date_string(pathname):
-        """
-        在文件名中间添加当前日期
-        参数:
-            pathname: 类似 '/test.php' 的字符串
-        返回:
-            添加了当前日期的文件名，如 '/test0618.php'
-        """
-        # 获取当前日期，格式为MMDD
-        current_date = datetime.now().strftime('%m%d')
-        # 分离文件名和扩展名
-        if '.' in pathname:
-            name_part, ext_part = pathname.rsplit('.', 1)
-            # 在文件名和扩展名之间插入日期
-            new_pathname = f"{name_part}{current_date}.{ext_part}"
-        else:
-            # 如果没有扩展名，直接在末尾添加日期
-            new_pathname = f"{pathname}{current_date}"
-        return new_pathname
