@@ -123,7 +123,6 @@ class NexusPHP(_ISiteSigninHandler):
         if not state:
             return state, message
 
-        # 已签到
         # 解析html
         html = etree.HTML(html_text)
         if html:
@@ -133,6 +132,7 @@ class NexusPHP(_ISiteSigninHandler):
                 logger.info(f"{site} 今日已签到")
                 return True, '今日已签到'
 
+        # 签到 - Get
         html_text = self.get_page_source(url=signin_url,
                                          ua=ua,
                                          cookies=cookies,
@@ -159,6 +159,33 @@ class NexusPHP(_ISiteSigninHandler):
         if self.test_re(text=html_text, regexs=self._re_signed_s):
             logger.info(f"{site} 今日已签到")
             return True, '今日已签到'
+
+        # 签到成功
+        if self.test_re(text=html_text, regexs=self._re_success):
+            logger.info(f"{site} 签到成功")
+            return True, '签到成功'
+
+        # 签到按钮
+        btn_sign = None
+        # 解析html
+        html = etree.HTML(html_text)
+        if html:
+            btn_sign = html.xpath("//input[@type='submit']")
+
+        if not btn_sign:
+            logger.warning(f"{site} 签到失败，接口返回：\n{html_text}")
+            return False, '签到失败，请查看日志'
+
+        # 签到 - Post
+        html_text = self.post_res(url=signin_url,
+                                  ua=ua,
+                                  cookies=cookies,
+                                  proxy=proxy,
+                                  timeout=timeout)
+
+        if not html_text:
+            logger.warning(f"{site} 签到失败，签到接口请求失败")
+            return False, '签到失败，签到接口请求失败'
 
         # 签到成功
         if self.test_re(text=html_text, regexs=self._re_success):
