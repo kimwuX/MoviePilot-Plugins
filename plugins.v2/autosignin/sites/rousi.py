@@ -1,17 +1,15 @@
-from typing import Optional, Tuple
+from typing import Tuple
 from urllib.parse import urljoin
 
 from ruamel.yaml import CommentedMap
 
-from app.core.config import settings
 from app.log import logger
 from app.plugins.autosignin.sites import _ISiteSigninHandler
-from app.utils.http import RequestUtils
 
 
 class RousiPro(_ISiteSigninHandler):
     """
-    RousiPro 签到
+    RousiPro签到
     """
 
     @staticmethod
@@ -21,19 +19,6 @@ class RousiPro(_ISiteSigninHandler):
         """
         return "rousi.pro"
 
-    @staticmethod
-    def get_json(response) -> Optional[dict]:
-        if response is not None:
-            try:
-                data = response.json()
-                return data
-            except Exception as e:
-                logger.debug(f"解析JSON失败: {e}")
-                return None
-            # finally:
-            #     response.close()
-        return None
-
     def signin(self, site_info: CommentedMap) -> Tuple[bool, str]:
         """
         执行签到操作
@@ -42,7 +27,6 @@ class RousiPro(_ISiteSigninHandler):
         """
         site = site_info.get("name")
         url = site_info.get("url")
-        # cookies = site_info.get("cookie")
         ua = site_info.get("ua")
         proxy = site_info.get("proxy")
         # render = site_info.get("render")
@@ -57,44 +41,44 @@ class RousiPro(_ISiteSigninHandler):
             return False, '签到失败，未配置请求头'
 
         headers = {
+            "Authorization": token if token.startswith("Bearer ") else f"Bearer {token}",
             "User-Agent": ua,
             "Content-Type": "application/json",
-            "Authorization": token if token.startswith("Bearer ") else f"Bearer {token}"
+            "Referer": url
         }
         # mode=fixed/random
         data = {"mode": "random"}
 
         # 签到
-        res_sign = RequestUtils(headers=headers,
-                                # cookies=cookies,
-                                proxies=settings.PROXY if proxy else None,
-                                timeout=timeout,
-                                referer=url
-                                ).post_res(url=signin_url, json=data)
+        html_text = self.post_res(url=signin_url,
+                                  headers=headers,
+                                  proxy=proxy,
+                                  timeout=timeout,
+                                  json=data,
+                                  check_code=False)
 
-        if res_sign is None:
+        if not html_text:
             logger.warning(f"{site} 签到失败，请检查站点连通性")
             return False, '签到失败，请检查站点连通性'
 
-        dict_sign = self.get_json(res_sign)
-        if not dict_sign:
-            logger.warning(f"{site} 签到失败，接口返回：\n{res_sign.text}")
-            return False, '签到失败，请查看日志'
+        sign_dict = self.safe_json_loads(html_text)
+        if not sign_dict:
+            logger.warning(f"{site} 签到失败，签到数据解析失败：\n{html_text}")
+            return False, '签到失败，签到数据解析失败'
 
-        if dict_sign.get("code") == 101:
+        code = sign_dict.get("code")
+        if code == 101:
             logger.warning(f"{site} 签到失败，Token已失效")
             return False, '签到失败，Token已失效'
-
-        if dict_sign.get("code") == 1:
+        if code == 1:
             logger.info(f"{site} 今日已签到")
             return True, '今日已签到'
-
-        if dict_sign.get("code") == 0:
-            bonus = dict_sign.get("data", {}).get("bonus")
+        if code == 0:
+            bonus = sign_dict.get("data", {}).get("bonus")
             logger.info(f'{site} 签到成功，获得{bonus}魔力值')
             return True, "签到成功"
 
-        logger.warning(f"{site} 签到失败，{dict_sign.get('message')}")
+        logger.warning(f"{site} 签到失败，{sign_dict.get('message')}")
         return False, '签到失败，请查看日志'
 
     def login(self, site_info: CommentedMap) -> Tuple[bool, str]:
@@ -105,7 +89,6 @@ class RousiPro(_ISiteSigninHandler):
         """
         site = site_info.get("name")
         url = site_info.get("url")
-        # cookies = site_info.get("cookie")
         ua = site_info.get("ua")
         proxy = site_info.get("proxy")
         # render = site_info.get("render")
@@ -120,34 +103,34 @@ class RousiPro(_ISiteSigninHandler):
             return False, '模拟登录失败，未配置请求头'
 
         headers = {
+            "Authorization": token if token.startswith("Bearer ") else f"Bearer {token}",
             "User-Agent": ua,
-            "Authorization": token if token.startswith("Bearer ") else f"Bearer {token}"
+            "Referer": url
         }
 
         # 获取用户信息，更新最后访问时间
-        res_info = RequestUtils(headers=headers,
-                                # cookies=cookies,
-                                proxies=settings.PROXY if proxy else None,
-                                timeout=timeout,
-                                referer=url
-                                ).get_res(url=login_url)
+        html_text = self.get_page_source(url=login_url,
+                                         headers=headers,
+                                         proxy=proxy,
+                                         timeout=timeout,
+                                         check_code=False)
 
-        if res_info is None:
+        if not html_text:
             logger.warning(f"{site} 模拟登录失败，请检查站点连通性")
             return False, '模拟登录失败，请检查站点连通性'
 
-        dict_info = self.get_json(res_info)
-        if not dict_info:
-            logger.warning(f"{site} 模拟登录失败，接口返回：\n{res_info.text}")
-            return False, '模拟登录失败，请查看日志'
+        info_dict = self.safe_json_loads(html_text)
+        if not info_dict:
+            logger.warning(f"{site} 模拟登录失败，登录数据解析失败：\n{html_text}")
+            return False, '模拟登录失败，登录数据解析失败'
 
-        if dict_info.get("code") == 101:
+        code = info_dict.get("code")
+        if code == 101:
             logger.warning(f"{site} 模拟登录失败，Token已失效")
             return False, '模拟登录失败，Token已失效'
-
-        if dict_info.get("code") == 0:
+        if code == 0:
             logger.info(f"{site} 模拟登录成功")
             return True, "模拟登录成功"
 
-        logger.warning(f"{site} 模拟登录失败，{dict_info.get('message')}")
+        logger.warning(f"{site} 模拟登录失败，{info_dict.get('message')}")
         return False, '模拟登录失败，请查看日志'

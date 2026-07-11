@@ -3,10 +3,8 @@ from urllib.parse import urljoin
 
 from ruamel.yaml import CommentedMap
 
-from app.core.config import settings
 from app.log import logger
 from app.plugins.autosignin.sites import _ISiteSigninHandler
-from app.utils.http import RequestUtils
 
 
 class NexusHD(_ISiteSigninHandler):
@@ -46,27 +44,30 @@ class NexusHD(_ISiteSigninHandler):
             'action': 'post',
             'content': ''
         }
-        html_res = RequestUtils(ua=ua,
-                                cookies=cookies,
-                                proxies=settings.PROXY if proxy else None,
-                                timeout=timeout
-                                ).post_res(url=signin_url, data=data)
-        if not html_res or html_res.status_code != 200:
+        html_text = self.post_res(url=signin_url,
+                                  ua=ua,
+                                  cookies=cookies,
+                                  proxy=proxy,
+                                  timeout=timeout,
+                                  data=data)
+
+        if not html_text:
             logger.warning(f"{site} 签到失败，请检查站点连通性")
             return False, '签到失败，请检查站点连通性'
 
-        if "login.php" in html_res.text:
+        if "login.php" in html_text:
             logger.warning(f"{site} 签到失败，Cookie已失效")
             return False, '签到失败，Cookie已失效'
 
         # 判断是否已签到
         # '已连续签到278天，此次签到您获得了100魔力值奖励!'
-        if self._success_text in html_res.text:
+        if self._success_text in html_text:
             logger.info(f"{site} 签到成功")
             return True, '签到成功'
-        if self._repeat_text in html_res.text:
+
+        if self._repeat_text in html_text:
             logger.info(f"{site} 今日已签到")
             return True, '今日已签到'
 
-        logger.warning(f"{site} 签到失败，接口返回：\n{html_res.text}")
+        logger.warning(f"{site} 签到失败，接口返回：\n{html_text}")
         return False, '签到失败，请查看日志'

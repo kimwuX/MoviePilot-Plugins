@@ -1,13 +1,10 @@
-import json
 from typing import Tuple
 from urllib.parse import urljoin
 
 from ruamel.yaml import CommentedMap
 
-from app.core.config import settings
 from app.log import logger
 from app.plugins.autosignin.sites import _ISiteSigninHandler
-from app.utils.http import RequestUtils
 
 
 class Hares(_ISiteSigninHandler):
@@ -51,36 +48,42 @@ class Hares(_ISiteSigninHandler):
                                          timeout=timeout)
 
         if not html_text:
-            logger.warning(f"{site} 模拟访问失败，请检查站点连通性")
-            return False, '模拟访问失败，请检查站点连通性'
+            logger.warning(f"{site} 签到失败，请检查站点连通性")
+            return False, '签到失败，请检查站点连通性'
 
         if "login.php" in html_text:
-            logger.warning(f"{site} 模拟访问失败，Cookie已失效")
-            return False, '模拟访问失败，Cookie已失效'
+            logger.warning(f"{site} 签到失败，Cookie已失效")
+            return False, '签到失败，Cookie已失效'
 
-        # if self._sign_text in html_res.text:
+        # if self._sign_text in html_text:
         #     logger.info(f"今日已签到")
         #     return True, '今日已签到'
 
-        headers = {
-            'Accept': 'application/json',
-            "User-Agent": ua
-        }
-        sign_res = RequestUtils(headers=headers,
-                                cookies=cookies,
-                                proxies=settings.PROXY if proxy else None,
-                                timeout=timeout
-                                ).get_res(url=signin_url)
-        if not sign_res or sign_res.status_code != 200:
+        html_sign = self.get_page_source(url=signin_url,
+                                         ua=ua,
+                                         cookies=cookies,
+                                         proxy=proxy,
+                                         timeout=timeout,
+                                         accept_type='application/json')
+
+        if not html_sign:
             logger.warning(f"{site} 签到失败，签到接口请求失败")
             return False, '签到失败，签到接口请求失败'
 
-        # {"code":1,"msg":"您今天已经签到过了"}
-        # {"code":0,"msg":"签到成功"}
-        sign_dict = json.loads(sign_res.text)
-        if sign_dict['code'] == 0:
+        sign_dict = self.safe_json_loads(html_sign)
+        if not sign_dict:
+            logger.warning(f"{site} 签到失败，签到数据解析失败：\n{html_sign}")
+            return False, '签到失败，签到数据解析失败'
+
+        code = sign_dict.get("code")
+        if code == 0:
+            # {"code":0,"msg":"签到成功"}
             logger.info(f"{site} 签到成功")
             return True, '签到成功'
-        else:
+        if code == 1:
+            # {"code":1,"msg":"您今天已经签到过了"}
             logger.info(f"{site} 今日已签到")
             return True, '今日已签到'
+
+        logger.warning(f"{site} 签到失败，接口返回：\n{html_sign}")
+        return False, '签到失败，请查看日志'

@@ -12,7 +12,7 @@ from app.utils.http import RequestUtils
 
 class YemaPT(_ISiteSigninHandler):
     """
-    YemaPT 签到
+    YemaPT签到
     """
 
     @staticmethod
@@ -37,59 +37,65 @@ class YemaPT(_ISiteSigninHandler):
         timeout = site_info.get("timeout")
 
         logger.info(f"开始以 {self.__class__.__name__} 模型签到 {site}")
-        # checklist_url = urljoin(url, "/api/consumer/fetch365AttendanceList")
         checklist_url = urljoin(url, "/api/consumer/fetchCheckInPageInfo")
         signin_url = urljoin(url, "/api/consumer/checkInNext")
 
-        headers = {
-            "User-Agent": ua,
-            "Accept": "application/json, text/plain, */*",
-        }
-
         # 签到记录
-        sign_dict = RequestUtils(headers=headers,
-                                 cookies=cookies,
-                                 proxies=settings.PROXY if proxy else None,
-                                 timeout=timeout,
-                                 referer=url
-                                 ).get_json(url=checklist_url)
+        html_text = self.get_page_source(url=checklist_url,
+                                         ua=ua,
+                                         cookies=cookies,
+                                         proxy=proxy,
+                                         timeout=timeout,
+                                         referer=url,
+                                         accept_type="application/json, text/plain, */*")
 
-        if not sign_dict:
+        if not html_text:
             logger.warning(f"{site} 签到失败，请检查站点连通性")
             return False, '签到失败，请检查站点连通性'
 
-        if not sign_dict.get("success"):
+        record_dict = self.safe_json_loads(html_text)
+        if not record_dict:
+            logger.warning(f"{site} 签到失败，签到记录解析失败：\n{html_text}")
+            return False, '签到失败，签到记录解析失败'
+
+        if not record_dict.get("success"):
             logger.warning(f"{site} 签到失败，Cookie已失效")
             return False, '签到失败，Cookie已失效'
 
         # today = datetime.now().strftime("%Y%m%d")
-        # for day in sign_dict.get("data"):
+        # for day in record_dict.get("data"):
         #     if str(day.get("checkDay")) == today:
         #         logger.info(f"{site} 今日已签到")
         #         return True, '今日已签到'
-        if sign_dict.get("data") and sign_dict.get("data").get("checkedInToday"):
+        if record_dict.get("data") and record_dict.get("data").get("checkedInToday"):
             logger.info(f"{site} 今日已签到")
             return True, '今日已签到'
 
-        headers["Content-Type"] = "application/json";
-
         # 签到
-        res_dict = RequestUtils(headers=headers,
-                                cookies=cookies,
-                                proxies=settings.PROXY if proxy else None,
-                                timeout=timeout,
-                                referer=url
-                                ).post_json(url=signin_url)
+        html_sign = self.post_res(url=signin_url,
+                                  ua=ua,
+                                  cookies=cookies,
+                                  proxy=proxy,
+                                  timeout=timeout,
+                                  referer=url,
+                                  content_type="application/json",
+                                  accept_type="application/json, text/plain, */*",
+                                  json={})
 
-        if not res_dict:
-            logger.warning(f"{site} 签到失败，请检查站点连通性")
-            return False, '签到失败，请检查站点连通性'
+        if not html_sign:
+            logger.warning(f"{site} 签到失败，签到接口请求失败")
+            return False, '签到失败，签到接口请求失败'
 
-        if res_dict.get("success"):
+        sign_dict = self.safe_json_loads(html_sign)
+        if not sign_dict:
+            logger.warning(f"{site} 签到失败，签到数据解析失败：\n{html_sign}")
+            return False, '签到失败，签到数据解析失败'
+
+        if sign_dict.get("success"):
             logger.info(f"{site} 签到成功")
             return True, "签到成功"
 
-        logger.warning(f"{site} 签到失败，接口返回：\n{res_dict}")
+        logger.warning(f"{site} 签到失败，接口返回：\n{html_sign}")
         return False, '签到失败，请查看日志'
 
     def login(self, site_info: CommentedMap) -> Tuple[bool, str]:
@@ -109,26 +115,27 @@ class YemaPT(_ISiteSigninHandler):
         logger.info(f"开始以 {self.__class__.__name__} 模型模拟登录 {site}")
         login_url = urljoin(url, "/api/user/profile")
 
-        headers = {
-            "User-Agent": ua,
-            "Accept": "application/json, text/plain, */*",
-        }
-
         # 获取用户信息，更新最后访问时间
-        res_dict = RequestUtils(headers=headers,
-                                cookies=cookies,
-                                proxies=settings.PROXY if proxy else None,
-                                timeout=timeout,
-                                referer=url
-                                ).get_json(url=login_url)
+        html_text = self.get_page_source(url=login_url,
+                                         ua=ua,
+                                         cookies=cookies,
+                                         proxy=proxy,
+                                         timeout=timeout,
+                                         referer=url,
+                                         accept_type="application/json, text/plain, */*")
 
-        if not res_dict:
+        if not html_text:
             logger.warning(f"{site} 模拟登录失败，请检查站点连通性")
             return False, '模拟登录失败，请检查站点连通性'
+
+        res_dict = self.safe_json_loads(html_text)
+        if not res_dict:
+            logger.warning(f"{site} 模拟登录失败，登录数据解析失败：\n{html_text}")
+            return False, '模拟登录失败，登录数据解析失败'
 
         if res_dict.get("success"):
             logger.info(f"{site} 模拟登录成功")
             return True, "模拟登录成功"
 
-        logger.warning(f"{site} 模拟登录失败，接口返回：\n{res_dict}")
+        logger.warning(f"{site} 模拟登录失败，接口返回：\n{html_text}")
         return False, '模拟登录失败，请查看日志'

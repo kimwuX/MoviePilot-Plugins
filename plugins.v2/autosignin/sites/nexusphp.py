@@ -133,7 +133,7 @@ class NexusPHP(_ISiteSigninHandler):
                 return True, '今日已签到'
 
         # 签到 - Get
-        html_text = self.get_page_source(url=signin_url,
+        html_sign = self.get_page_source(url=signin_url,
                                          ua=ua,
                                          cookies=cookies,
                                          proxy=proxy,
@@ -141,58 +141,59 @@ class NexusPHP(_ISiteSigninHandler):
                                          timeout=timeout,
                                          check_code=False)
 
-        if not html_text:
+        if not html_sign:
             logger.warning(f"{site} 签到失败，无法打开签到页面")
             return False, '签到失败，无法打开签到页面'
 
-        if self.test_re(text=html_text, regexs=self._re_404,
+        if self.test_re(text=html_sign, regexs=self._re_404,
                         flags=re.RegexFlag.IGNORECASE):
             logger.warning(f"{site} 签到失败，请确认是否有签到功能")
             return False, '签到失败，请确认是否有签到功能'
 
         # 页面出错
-        state, message = self.check_html(site=site, html_text=html_text)
+        state, message = self.check_html(site=site, html_text=html_sign)
         if not state:
             return state, message
 
         # 已签到
-        if self.test_re(text=html_text, regexs=self._re_signed_s):
+        if self.test_re(text=html_sign, regexs=self._re_signed_s):
             logger.info(f"{site} 今日已签到")
             return True, '今日已签到'
 
         # 签到成功
-        if self.test_re(text=html_text, regexs=self._re_success):
+        if self.test_re(text=html_sign, regexs=self._re_success):
             logger.info(f"{site} 签到成功")
             return True, '签到成功'
 
         # 签到按钮
         btn_sign = None
         # 解析html
-        html = etree.HTML(html_text)
+        html = etree.HTML(html_sign)
         if html:
             btn_sign = html.xpath("//input[@type='submit']")
 
         if not btn_sign:
-            logger.warning(f"{site} 签到失败，接口返回：\n{html_text}")
+            logger.warning(f"{site} 签到失败，接口返回：\n{html_sign}")
             return False, '签到失败，请查看日志'
 
+        logger.debug(f"{site} 尝试 POST 请求签到")
         # 签到 - Post
-        html_text = self.post_res(url=signin_url,
+        html_post = self.post_res(url=signin_url,
                                   ua=ua,
                                   cookies=cookies,
                                   proxy=proxy,
                                   timeout=timeout)
 
-        if not html_text:
+        if not html_post:
             logger.warning(f"{site} 签到失败，签到接口请求失败")
             return False, '签到失败，签到接口请求失败'
 
         # 签到成功
-        if self.test_re(text=html_text, regexs=self._re_success):
+        if self.test_re(text=html_post, regexs=self._re_success):
             logger.info(f"{site} 签到成功")
             return True, '签到成功'
 
-        logger.warning(f"{site} 签到失败，接口返回：\n{html_text}")
+        logger.warning(f"{site} 签到失败，接口返回：\n{html_post}")
         return False, '签到失败，请查看日志'
 
     def login(self, site_info: CommentedMap) -> Tuple[bool, str]:

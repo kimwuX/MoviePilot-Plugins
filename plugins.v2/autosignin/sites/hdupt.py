@@ -50,6 +50,7 @@ class HDUPT(_ISiteSigninHandler):
                                          proxy=proxy,
                                          render=render,
                                          timeout=timeout)
+
         if not html_text:
             logger.warning(f"{site} 签到失败，请检查站点连通性")
             return False, '签到失败，请检查站点连通性'
@@ -63,21 +64,21 @@ class HDUPT(_ISiteSigninHandler):
             return True, '今日已签到'
 
         # 签到
-        html_text = self.get_page_source(url=signin_url,
+        html_sign = self.get_page_source(url=signin_url,
                                          ua=ua,
                                          cookies=cookies,
                                          proxy=proxy,
                                          render=render,
                                          timeout=timeout)
-        if not html_text:
+
+        if not html_sign:
             logger.warning(f"{site} 签到失败，请检查站点连通性")
             return False, '签到失败，请检查站点连通性'
 
-        logger.debug(f"{site} 签到接口返回 {html_text}")
         # 判断是否已签到 sign_res.text = ".23"
-        if len(list(map(int, re.findall(r"\d+", html_text)))) > 0:
+        if len(list(map(int, re.findall(r"\d+", html_sign)))) > 0:
             logger.info(f"{site} 签到成功")
             return True, '签到成功'
 
-        logger.warning(f"{site} 签到失败，接口返回：\n{html_text}")
+        logger.warning(f"{site} 签到失败，接口返回：\n{html_sign}")
         return False, '签到失败，请查看日志'

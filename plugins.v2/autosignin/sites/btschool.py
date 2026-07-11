@@ -65,25 +65,25 @@ class BTSchool(_ISiteSigninHandler):
             logger.info(f"{site} 今日已签到")
             return True, '今日已签到'
 
-        html_text = self.get_page_source(url=signin_url,
+        html_sign = self.get_page_source(url=signin_url,
                                          ua=ua,
                                          cookies=cookies,
                                          proxy=proxy,
                                          render=render,
                                          timeout=timeout)
 
-        if not html_text:
+        if not html_sign:
             logger.warning(f"{site} 签到失败，签到接口请求失败")
             return False, '签到失败，签到接口请求失败'
 
-        if under_challenge(html_text):
+        if under_challenge(html_sign):
             logger.warning(f"{site} 签到失败，无法绕过Cloudflare检测")
             return False, '签到失败，无法绕过Cloudflare检测'
 
         # 签到成功
-        if self._sign_text not in html_text:
+        if self._sign_text not in html_sign:
             logger.info(f"{site} 签到成功")
             return True, '签到成功'
 
-        logger.warning(f"{site} 签到失败，接口返回：\n{html_text}")
+        logger.warning(f"{site} 签到失败，接口返回：\n{html_sign}")
         return False, '签到失败，请查看日志'

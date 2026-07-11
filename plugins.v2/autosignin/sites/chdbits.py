@@ -1,4 +1,3 @@
-import json
 import re
 from typing import Tuple
 from urllib.parse import urljoin
@@ -9,7 +8,6 @@ from ruamel.yaml import CommentedMap
 from app.core.config import settings
 from app.log import logger
 from app.plugins.autosignin.sites import _ISiteSigninHandler
-from app.utils.http import RequestUtils
 
 
 class CHDBits(_ISiteSigninHandler):
@@ -99,8 +97,8 @@ class CHDBits(_ISiteSigninHandler):
         try:
             with open(self._answer_file, 'r', encoding='utf-8') as f:
                 json_str = f.read()
-            exits_answers = json.loads(json_str)
-            choice = exits_answers.get(questionid)
+            exits_answers = self.safe_json_loads(json_str)
+            choice = exits_answers.get(questionid) if exits_answers else None
             logger.debug(f"{site} 本地答案：{choice}")
 
             # 本地存在答案
@@ -117,7 +115,7 @@ class CHDBits(_ISiteSigninHandler):
             logger.debug(f"{site} 查询本地已知答案失败：{str(e)}")
 
         logger.warning(f"{site} 编号[{questionid}]问题【{re.sub(r'\s+', ' ', question_str.strip())}】签到失败，"
-                    f"答案选项：{list(zip(option_ids, option_texts))}")
+                       f"答案选项：{list(zip(option_ids, option_texts))}")
 
         return False, '签到失败，未收录该题答案'
 
@@ -149,24 +147,26 @@ class CHDBits(_ISiteSigninHandler):
         logger.debug(f"{site} 签到请求参数：{data}")
 
         signin_url = urljoin(url, self._signin_path)
-        sign_res = RequestUtils(ua=ua,
-                                cookies=cookies,
-                                proxies=settings.PROXY if proxy else None,
-                                timeout=timeout,
-                                referer=signin_url
-                                ).post_res(url=signin_url, data=data)
-        if not sign_res or sign_res.status_code != 200:
+        html_sign = self.post_res(url=signin_url,
+                                  ua=ua,
+                                  cookies=cookies,
+                                  proxy=proxy,
+                                  timeout=timeout,
+                                  referer=signin_url,
+                                  data=data)
+
+        if not html_sign:
             logger.warning(f"{site} 签到失败，签到接口请求失败")
             return False, '签到失败，签到接口请求失败'
 
         # 判断是否签到成功
-        if self.test_re(text=sign_res.text, regexs=self._success_regex):
+        if self.test_re(text=html_sign, regexs=self._success_regex):
             logger.info(f"{site} 签到成功")
             return True, '签到成功'
-        else:
-            if self.test_re(text=sign_res.text, regexs=self._sign_regex):
-                logger.info(f"{site} 今日已签到")
-                return True, '今日已签到'
 
-        logger.warning(f"{site} 签到失败，接口返回：\n{sign_res.text}")
+        if self.test_re(text=html_sign, regexs=self._sign_regex):
+            logger.info(f"{site} 今日已签到")
+            return True, '今日已签到'
+
+        logger.warning(f"{site} 签到失败，接口返回：\n{html_sign}")
         return False, '签到失败，请查看日志'

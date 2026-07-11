@@ -1,14 +1,11 @@
-import json
 from typing import Tuple
 from urllib.parse import urljoin
 
 from lxml import etree
 from ruamel.yaml import CommentedMap
 
-from app.core.config import settings
 from app.log import logger
 from app.plugins.autosignin.sites import _ISiteSigninHandler
-from app.utils.http import RequestUtils
 
 
 class OpenCD(_ISiteSigninHandler):
@@ -50,6 +47,7 @@ class OpenCD(_ISiteSigninHandler):
                                          proxy=proxy,
                                          render=render,
                                          timeout=timeout)
+
         if not html_text:
             logger.warning(f"{site} 签到失败，请检查站点连通性")
             return False, '签到失败，请检查站点连通性'
@@ -63,27 +61,28 @@ class OpenCD(_ISiteSigninHandler):
             return True, '今日已签到'
 
         # 获取签到参数
-        html_text = self.get_page_source(url=urljoin(url, "/plugin_sign-in.php"),
-                                         ua=ua,
-                                         cookies=cookies,
-                                         proxy=proxy,
-                                         render=render)
-        if not html_text:
+        html_image = self.get_page_source(url=urljoin(url, "/plugin_sign-in.php"),
+                                          ua=ua,
+                                          cookies=cookies,
+                                          proxy=proxy,
+                                          render=render)
+
+        if not html_image:
             logger.warning(f"{site} 签到失败，请检查站点连通性")
             return False, '签到失败，请检查站点连通性'
 
         # 没有签到则解析html
-        html = etree.HTML(html_text)
+        html = etree.HTML(html_image)
         if not html:
-            logger.warning(f"{site} 签到失败，无法解析：\n{html_text}")
+            logger.warning(f"{site} 签到失败，无法解析：\n{html_image}")
             return False, f'签到失败，无法解析文档'
 
         # 签到参数
         img_capt = html.xpath('//form[@id="frmSignin"]//img/@src')
         img_hash = html.xpath('//form[@id="frmSignin"]//input[@name="imagehash"]/@value')
         if not img_capt or not img_hash:
-            logger.warning(f"{site} 签到失败，获取签到参数失败")
-            return False, '签到失败，获取签到参数失败'
+            logger.warning(f"{site} 签到失败，签到参数获取失败")
+            return False, '签到失败，签到参数获取失败'
 
         logger.debug(f"{site} img_capt: {img_capt}")
         logger.debug(f"{site} img_hash: {img_hash}")
@@ -109,20 +108,27 @@ class OpenCD(_ISiteSigninHandler):
         logger.debug(f"{site} 签到请求参数：{data}")
 
         # 签到
-        sign_res = RequestUtils(ua=ua,
-                                cookies=cookies,
-                                proxies=settings.PROXY if proxy else None,
-                                timeout=timeout
-                                ).post_res(url=signin_url, data=data)
-        if not sign_res or sign_res.status_code != 200:
+        html_sign = self.post_res(url=signin_url,
+                                  ua=ua,
+                                  cookies=cookies,
+                                  proxy=proxy,
+                                  timeout=timeout,
+                                  data=data)
+
+        if not html_sign:
             logger.warning(f"{site} 签到失败，签到接口请求失败")
             return False, '签到失败，签到接口请求失败'
 
-        # sign_res.text = '{"state":"success","signindays":"0","integral":"10"}'
-        sign_dict = json.loads(sign_res.text)
-        if sign_dict['state']:
+        sign_dict = self.safe_json_loads(html_sign)
+        if not sign_dict:
+            logger.warning(f"{site} 签到失败，签到数据解析失败：\n{html_sign}")
+            return False, '签到失败，签到数据解析失败'
+
+        # {"state":"success","signindays":"3","integral":"13"}
+        # {"state":"false", "msg":"验证码错误"}
+        if sign_dict.get("state") == "success":
             logger.info(f"{site} 签到成功")
             return True, '签到成功'
-        else:
-            logger.warning(f"{site} 签到失败，接口返回：\n{sign_res.text}")
-            return False, '签到失败，请查看日志'
+
+        logger.warning(f"{site} 签到失败，接口返回：\n{html_sign}")
+        return False, '签到失败，请查看日志'

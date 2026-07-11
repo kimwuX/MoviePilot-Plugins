@@ -1,5 +1,4 @@
 import re
-from datetime import datetime
 from typing import Tuple
 from urllib.parse import urljoin
 
@@ -9,7 +8,6 @@ from ruamel.yaml import CommentedMap
 from app.core.config import settings
 from app.log import logger
 from app.plugins.autosignin.sites import _ISiteSigninHandler
-from app.utils.http import RequestUtils
 
 
 class PT52(_ISiteSigninHandler):
@@ -85,18 +83,18 @@ class PT52(_ISiteSigninHandler):
         if script_text:
             mat_captcha = re.search(r"captchaInput\.value\s*=\s*'(\d+)'", script_text[0])
         if not mat_captcha:
-            logger.warning(f"{site} 签到失败，获取sign_captcha参数失败")
-            return False, '签到失败，获取签到参数失败'
+            logger.warning(f"{site} 签到失败，签到参数[sign_captcha]获取失败")
+            return False, '签到失败，签到参数获取失败'
 
         sign_token = html.xpath("//input[@name='sign_token']/@value")
         if not sign_token:
-            logger.warning(f"{site} 签到失败，获取sign_token参数失败")
-            return False, '签到失败，获取签到参数失败'
+            logger.warning(f"{site} 签到失败，签到参数[sign_token]获取失败")
+            return False, '签到失败，签到参数获取失败'
 
         sign_submit = html.xpath("//input[@name='sign_submit']/@value")
         if not sign_submit:
-            logger.warning(f"{site} 签到失败，获取sign_submit参数失败")
-            return False, '签到失败，获取签到参数失败'
+            logger.warning(f"{site} 签到失败，签到参数[sign_submit]获取失败")
+            return False, '签到失败，签到参数获取失败'
 
         logger.debug(f'{site} mat_captcha: {mat_captcha.group()}')
         logger.debug(f'{site} sign_token: {sign_token}')
@@ -111,24 +109,26 @@ class PT52(_ISiteSigninHandler):
         logger.debug(f"{site} 签到请求参数：{data}")
 
         # 签到
-        sign_res = RequestUtils(ua=ua,
-                                cookies=cookies,
-                                proxies=settings.PROXY if proxy else None,
-                                timeout=timeout,
-                                referer=signin_url
-                                ).post_res(url=signin_url, data=data)
-        if not sign_res or sign_res.status_code != 200:
+        html_sign = self.post_res(url=signin_url,
+                                  ua=ua,
+                                  cookies=cookies,
+                                  proxy=proxy,
+                                  timeout=timeout,
+                                  referer=signin_url,
+                                  data=data)
+
+        if not html_sign:
             logger.warning(f"{site} 签到失败，签到接口请求失败")
             return False, '签到失败，签到接口请求失败'
 
         # 判断是否签到成功
-        if self.test_re(text=sign_res.text, regexs=self._success_regex):
+        if self.test_re(text=html_sign, regexs=self._success_regex):
             logger.info(f"{site} 签到成功")
             return True, '签到成功'
-        else:
-            if self.test_re(text=sign_res.text, regexs=self._sign_regex):
-                logger.info(f"{site} 今日已签到")
-                return True, '今日已签到'
 
-        logger.warning(f"{site} 签到失败，接口返回：\n{sign_res.text}")
+        if self.test_re(text=html_sign, regexs=self._sign_regex):
+            logger.info(f"{site} 今日已签到")
+            return True, '今日已签到'
+
+        logger.warning(f"{site} 签到失败，接口返回：\n{html_sign}")
         return False, '签到失败，请查看日志'

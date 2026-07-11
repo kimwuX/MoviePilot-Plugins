@@ -4,10 +4,8 @@ from urllib.parse import urljoin
 from lxml import etree
 from ruamel.yaml import CommentedMap
 
-from app.core.config import settings
 from app.log import logger
 from app.plugins.autosignin.sites import _ISiteSigninHandler
-from app.utils.http import RequestUtils
 
 
 class LJD(_ISiteSigninHandler):
@@ -73,8 +71,8 @@ class LJD(_ISiteSigninHandler):
         img_capt = html.xpath('//img[@alt="CAPTCHA"]/@src')
         img_hash = html.xpath('//input[@name="imagehash"]/@value')
         if not img_capt or not img_hash:
-            logger.warning(f"{site} 签到失败，获取签到参数失败")
-            return False, '签到失败，获取签到参数失败'
+            logger.warning(f"{site} 签到失败，签到参数获取失败")
+            return False, '签到失败，签到参数获取失败'
 
         logger.debug(f"{site} img_capt: {img_capt}")
         logger.debug(f"{site} img_hash: {img_hash}")
@@ -100,19 +98,21 @@ class LJD(_ISiteSigninHandler):
         logger.debug(f"{site} 签到请求参数：{data}")
 
         # 签到
-        sign_res = RequestUtils(ua=ua,
-                                cookies=cookies,
-                                proxies=settings.PROXY if proxy else None,
-                                timeout=timeout
-                                ).post_res(url=signin_url, data=data)
-        if not sign_res or sign_res.status_code != 200:
+        html_sign = self.post_res(url=signin_url,
+                                  ua=ua,
+                                  cookies=cookies,
+                                  proxy=proxy,
+                                  timeout=timeout,
+                                  data=data)
+
+        if not html_sign:
             logger.warning(f"{site} 签到失败，签到接口请求失败")
             return False, '签到失败，签到接口请求失败'
 
         # 判断是否签到成功
-        if self.test_re(text=sign_res.text, regexs=self._success_regex):
+        if self.test_re(text=html_sign, regexs=self._success_regex):
             logger.info(f"{site} 签到成功")
             return True, '签到成功'
 
-        logger.warning(f"{site} 签到失败，接口返回：\n{sign_res.text}")
+        logger.warning(f"{site} 签到失败，接口返回：\n{html_sign}")
         return False, '签到失败，请查看日志'

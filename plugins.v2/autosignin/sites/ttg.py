@@ -52,6 +52,7 @@ class TTG(_ISiteSigninHandler):
                                          proxy=proxy,
                                          render=render,
                                          timeout=timeout)
+
         if not html_text:
             logger.warning(f"{site} 签到失败，请检查站点连通性")
             return False, '签到失败，请检查站点连通性'

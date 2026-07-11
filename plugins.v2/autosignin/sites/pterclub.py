@@ -1,4 +1,3 @@
-import json
 from typing import Tuple
 from urllib.parse import urljoin
 
@@ -18,7 +17,7 @@ class PTerClub(_ISiteSigninHandler):
         """
         获取当前站点域名，可以是单个或者多个域名
         """
-        return ["pterclub.com", "pterclub.net"]
+        return "pterclub.net"
 
     def signin(self, site_info: CommentedMap) -> Tuple[bool, str]:
         """
@@ -44,6 +43,7 @@ class PTerClub(_ISiteSigninHandler):
                                          proxy=proxy,
                                          render=render,
                                          timeout=timeout)
+
         if not html_text:
             logger.warning(f"{site} 签到失败，请检查站点连通性")
             return False, '签到失败，请检查站点连通性'
@@ -52,18 +52,21 @@ class PTerClub(_ISiteSigninHandler):
             logger.warning(f"{site} 签到失败，Cookie已失效")
             return False, '签到失败，Cookie已失效'
 
-        try:
-            sign_dict = json.loads(html_text)
-        except Exception as e:
-            logger.warning(f"{site} 签到失败，错误信息：\n{str(e)}")
-            return False, '签到失败，未知错误'
+        sign_dict = self.safe_json_loads(html_text)
+        if not sign_dict:
+            logger.warning(f"{site} 签到失败，签到数据解析失败：\n{html_text}")
+            return False, '签到失败，签到数据解析失败'
 
-        if sign_dict['status'] == '1':
+        status = sign_dict.get("status")
+        if status == "1":
             # {"status":"1","data":" (签到已成功300)","message":"<p>这是您的第<b>237</b>次签到，
             # 已连续签到<b>237</b>天。</p><p>本次签到获得<b>300</b>克猫粮。</p>"}
             logger.info(f"{site} 签到成功")
             return True, '签到成功'
-        else:
+        if status == "0":
             # {"status":"0","data":"抱歉","message":"您今天已经签到过了，请勿重复刷新。"}
             logger.info(f"{site} 今日已签到")
             return True, '今日已签到'
+
+        logger.warning(f"{site} 签到失败，接口返回：\n{html_text}")
+        return False, '签到失败，请查看日志'

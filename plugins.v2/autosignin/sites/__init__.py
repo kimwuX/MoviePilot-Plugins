@@ -1,3 +1,4 @@
+import json
 import re
 import time
 from abc import ABCMeta, abstractmethod
@@ -77,24 +78,26 @@ class _ISiteSigninHandler(metaclass=ABCMeta):
 
     @classmethod
     def get_page_source(cls, url: str,
+                        headers: dict = None,
                         ua: str = None,
                         cookies: str = None,
                         proxy: bool = False,
                         render: bool = False,
-                        token: str = None,
                         timeout: int = None,
                         referer: str = None,
+                        accept_type: str = None,
                         check_code: bool = True) -> str:
         """
         获取页面源码
         :param url: Url地址
+        :param headers: 请求头部信息，使用 headers 会忽略其它头部参数，比如 ua/referer/content_type/accept_type 等
         :param ua: User-Agent字符串
         :param cookies: Cookie字符串
         :param proxy: 是否使用代理
         :param render: 是否渲染
-        :param token: JWT Token
         :param timeout: 请求超时时间，单位秒
         :param referer: Referer头部信息
+        :param accept_type: Accept头部信息
         :param check_code: 是否检查 HTTP 返回状态码
         :return: 页面源码
         """
@@ -106,23 +109,20 @@ class _ISiteSigninHandler(metaclass=ABCMeta):
                                                       proxies=settings.PROXY_SERVER if proxy else None,
                                                       timeout=timeout or 60)
 
-        headers = {}
-        if token:
-            headers["Authorization"] = token
-        if ua:
-            headers["User-Agent"] = ua
-        if referer:
-            headers["Referer"] = referer
         res = RequestUtils(headers=headers,
+                           ua=ua,
                            cookies=cookies,
                            proxies=settings.PROXY if proxy else None,
-                           timeout=timeout or 20
+                           timeout=timeout or 20,
+                           referer=referer,
+                           accept_type=accept_type
                            ).get_res(url=url, allow_redirects=False)
 
         # 重定向
         while res is not None and res.status_code in (301, 302) and res.headers['Location']:
             logger.info(f"重定向 {url} -> {res.headers['Location']}")
             url = urljoin(url, res.headers['Location'])
+            res.close()
             res = RequestUtils(headers=headers,
                                cookies=cookies,
                                proxies=settings.PROXY if proxy else None,
@@ -130,11 +130,11 @@ class _ISiteSigninHandler(metaclass=ABCMeta):
                                ).get_res(url=url, allow_redirects=False)
 
         if res is None:
-            return ""
+            return None
 
         # 403-cloudflare, 468-safeline
         if check_code and res.status_code not in (200, 500, 403, 468):
-            return ""
+            return None
 
         return cls.decode_response(res)
 
@@ -146,17 +146,22 @@ class _ISiteSigninHandler(metaclass=ABCMeta):
                  proxy: bool = False,
                  timeout: int = None,
                  referer: str = None,
+                 content_type: str = None,
+                 accept_type: str = None,
                  data: Any = None,
-                 json: dict = None) -> str:
+                 json: dict = None,
+                 check_code: bool = True) -> str:
         """
         发送POST请求并返回响应结果
         :param url: Url地址
-        :param headers: 请求头部信息，使用 headers 会忽略其它头部参数
+        :param headers: 请求头部信息，使用 headers 会忽略其它头部参数，比如 ua/referer/content_type/accept_type 等
         :param ua: User-Agent字符串
         :param cookies: Cookie字符串
         :param proxy: 是否使用代理
         :param timeout: 请求超时时间，单位秒
         :param referer: Referer头部信息
+        :param content_type: 请求的Content-Type
+        :param accept_type: Accept头部信息
         :param data: 请求的数据
         :param json: 请求的JSON数据
         :return: 响应结果文本
@@ -166,8 +171,17 @@ class _ISiteSigninHandler(metaclass=ABCMeta):
                            cookies=cookies,
                            proxies=settings.PROXY if proxy else None,
                            timeout=timeout,
-                           referer=referer
+                           referer=referer,
+                           content_type=content_type,
+                           accept_type=accept_type
                            ).post_res(url=url, data=data, json=json)
+
+        if res is None:
+            return None
+
+        if check_code and res.status_code != 200:
+            res.close()
+            return None
 
         return cls.decode_response(res)
 
@@ -177,7 +191,8 @@ class _ISiteSigninHandler(metaclass=ABCMeta):
         获取 Response 内容
         """
         if response is None:
-            return ""
+            return None
+
         try:
             if response.content:
                 # 1. 获取编码信息
@@ -199,6 +214,8 @@ class _ISiteSigninHandler(metaclass=ABCMeta):
         except Exception as e:
             logger.debug(f"Error when getting decoded content: {str(e)}")
             return response.text
+        finally:
+            response.close()
 
     @staticmethod
     def img_ocr(site: str = None,
@@ -238,6 +255,30 @@ class _ISiteSigninHandler(metaclass=ABCMeta):
                 logger.warning(f"{site} 验证码识别错误：{result}")
             count += 1
         return result
+
+    @staticmethod
+    def safe_json_loads(text: str) -> Any:
+        """
+        反序列化 json 字符串
+        """
+        if text is None or not text.strip():
+            logger.debug("json 字符串无效")
+            return None
+
+        try:
+            data = json.loads(text)
+            return data
+        except json.JSONDecodeError as e:
+            # 捕获 JSON 格式错误
+            # e.msg: 错误描述
+            # e.pos: 错误位置
+            # e.lineno: 行号
+            logger.debug(f"json 解码失败: {e.msg} at position {e.pos} (line {e.lineno})")
+            return None
+        except Exception as e:
+            # 捕获其他未知异常
+            logger.debug(f"json 解析过程中发生未知错误: {str(e)}")
+            return None
 
     @staticmethod
     def test_re(text: str, regexs: list, flags: int = 0) -> bool:

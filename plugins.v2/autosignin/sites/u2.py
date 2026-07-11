@@ -10,12 +10,11 @@ from ruamel.yaml import CommentedMap
 from app.core.config import settings
 from app.log import logger
 from app.plugins.autosignin.sites import _ISiteSigninHandler
-from app.utils.http import RequestUtils
 
 
 class U2(_ISiteSigninHandler):
     """
-    U2签到 随机
+    U2签到
     """
 
     # 已签到
@@ -66,6 +65,7 @@ class U2(_ISiteSigninHandler):
                                          proxy=proxy,
                                          render=render,
                                          timeout=timeout)
+
         if not html_text:
             logger.warning(f"{site} 签到失败，请检查站点连通性")
             return False, '签到失败，请检查站点连通性'
@@ -104,21 +104,24 @@ class U2(_ISiteSigninHandler):
             'message': '今日份签到',
             submit_name[answer_num]: submit_value[answer_num]
         }
+
         # 签到
-        sign_res = RequestUtils(ua=ua,
-                                cookies=cookies,
-                                proxies=settings.PROXY if proxy else None,
-                                timeout=timeout
-                                ).post_res(url=signin_url, data=data)
-        if not sign_res or sign_res.status_code != 200:
+        html_sign = self.post_res(url=signin_url,
+                                  ua=ua,
+                                  cookies=cookies,
+                                  proxy=proxy,
+                                  timeout=timeout,
+                                  data=data)
+
+        if not html_sign:
             logger.warning(f"{site} 签到失败，签到接口请求失败")
             return False, '签到失败，签到接口请求失败'
 
         # 判断是否签到成功
-        # sign_res.text = "<script type="text/javascript">window.location.href = 'showup.php';</script>"
-        if self._success_text in sign_res.text:
+        # <script type="text/javascript">window.location.href = 'showup.php';</script>
+        if self._success_text in html_sign:
             logger.info(f"{site} 签到成功")
             return True, '签到成功'
 
-        logger.warning(f"{site} 签到失败，接口返回：\n{sign_res.text}")
+        logger.warning(f"{site} 签到失败，接口返回：\n{html_sign}")
         return False, '签到失败，请查看日志'

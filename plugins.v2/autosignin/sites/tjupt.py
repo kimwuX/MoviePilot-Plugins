@@ -1,5 +1,4 @@
 import json
-import os
 import time
 from io import BytesIO
 from typing import Tuple
@@ -117,9 +116,9 @@ class TJUPT(_ISiteSigninHandler):
         try:
             with open(self._answer_file, 'r', encoding='utf-8') as f:
                 json_str = f.read()
-            exits_answers = json.loads(json_str)
+            exits_answers = self.safe_json_loads(json_str)
             # 查询本地本次验证码hash答案
-            captcha_answer = exits_answers.get(img_name)
+            captcha_answer = exits_answers.get(img_name) if exits_answers else None
             logger.debug(f"{site} 本地答案：{captcha_answer}")
 
             # 本地存在本次hash对应的正确答案再遍历查询
@@ -168,7 +167,7 @@ class TJUPT(_ISiteSigninHandler):
                     continue
 
                 # 豆瓣返回结果
-                db_answers = json.loads(db_res.text)
+                db_answers = self.safe_json_loads(db_res.text)
                 if not isinstance(db_answers, list):
                     db_answers = [db_answers]
 
@@ -228,18 +227,21 @@ class TJUPT(_ISiteSigninHandler):
             'submit': '提交'
         }
         logger.debug(f"{site} 签到请求参数：{data}")
+
         signin_url = urljoin(url, self._signin_path)
-        sign_res = RequestUtils(ua=ua,
-                                cookies=cookies,
-                                proxies=settings.PROXY if proxy else None,
-                                timeout=timeout
-                                ).post_res(url=signin_url, data=data)
-        if not sign_res or sign_res.status_code != 200:
+        html_text = self.post_res(url=signin_url,
+                                  ua=ua,
+                                  cookies=cookies,
+                                  proxy=proxy,
+                                  timeout=timeout,
+                                  data=data)
+
+        if not html_text:
             logger.warning(f"{site} 签到失败，签到接口请求失败")
             return False, '签到失败，签到接口请求失败'
 
         # 获取签到后返回html，判断是否签到成功
-        if self.test_re(text=sign_res.text, regexs=self._succeed_regex):
+        if self.test_re(text=html_text, regexs=self._succeed_regex):
             if exits_answers is not None and img_name is not None:
                 # 签到成功写入本地文件
                 self.__write_local_answer(exits_answers=exits_answers,
@@ -248,7 +250,7 @@ class TJUPT(_ISiteSigninHandler):
             logger.info(f"{site} 签到成功")
             return True, '签到成功'
 
-        logger.warning(f"{site} 签到失败，接口返回：\n{sign_res.text}")
+        logger.warning(f"{site} 签到失败，接口返回：\n{html_text}")
         return False, '签到失败，请查看日志'
 
     def __write_local_answer(self, exits_answers, img_name, answer):

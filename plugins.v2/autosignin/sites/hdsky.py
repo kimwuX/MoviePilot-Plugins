@@ -1,14 +1,11 @@
-import json
 import time
 from typing import Tuple
 from urllib.parse import urljoin
 
 from ruamel.yaml import CommentedMap
 
-from app.core.config import settings
 from app.log import logger
 from app.plugins.autosignin.sites import _ISiteSigninHandler
-from app.utils.http import RequestUtils
 
 
 class HDSky(_ISiteSigninHandler):
@@ -51,6 +48,7 @@ class HDSky(_ISiteSigninHandler):
                                          proxy=proxy,
                                          render=render,
                                          timeout=timeout)
+
         if not html_text:
             logger.warning(f"{site} 签到失败，请检查站点连通性")
             return False, '签到失败，请检查站点连通性'
@@ -70,25 +68,22 @@ class HDSky(_ISiteSigninHandler):
             if res_times > 0:
                 time.sleep(1)
                 logger.warning(f"{site} 验证码图片获取失败，正在进行第{res_times}次重试")
-            image_res = RequestUtils(ua=ua,
-                                     cookies=cookies,
-                                     proxies=settings.PROXY if proxy else None,
-                                     timeout=timeout,
-                                     referer=url,
-                                     content_type='application/x-www-form-urlencoded; charset=UTF-8',
-                                     accept_type="*/*"
-                                     ).post_res(url=get_image_url,
-                                                data={'action': 'new'})
-            if image_res and image_res.status_code == 200:
-                image_json = json.loads(image_res.text)
-                if image_json["success"]:
-                    img_hash = image_json["code"]
-                    break
-                res_times += 1
+            html_image = self.post_res(url=get_image_url,
+                                       ua=ua,
+                                       cookies=cookies,
+                                       proxy=proxy,
+                                       timeout=timeout,
+                                       referer=url,
+                                       data={'action': 'new'})
+            image_dict = self.safe_json_loads(html_image)
+            if image_dict and image_dict.get("success"):
+                img_hash = image_dict.get("code")
+                break
+            res_times += 1
 
         if not img_hash:
-            logger.warning(f"{site} 签到失败，获取签到参数失败")
-            return False, '签到失败，获取签到参数失败'
+            logger.warning(f"{site} 签到失败，签到参数获取失败")
+            return False, '签到失败，签到参数获取失败'
 
         # 完整验证码url
         img_url = urljoin(url, f'/image.php?action=regimage&imagehash={img_hash}')
@@ -112,29 +107,39 @@ class HDSky(_ISiteSigninHandler):
         logger.debug(f"{site} 签到请求参数：{data}")
 
         # 签到
-        sign_res = RequestUtils(ua=ua,
-                                cookies=cookies,
-                                proxies=settings.PROXY if proxy else None,
-                                timeout=timeout,
-                                referer=url
-                                ).post_res(url=signin_url, data=data)
-        if not sign_res or sign_res.status_code != 200:
+        html_sign = self.post_res(url=signin_url,
+                                  ua=ua,
+                                  cookies=cookies,
+                                  proxy=proxy,
+                                  timeout=timeout,
+                                  referer=url,
+                                  data=data)
+
+        if not html_sign:
             logger.warning(f"{site} 签到失败，签到接口请求失败")
             return False, '签到失败，签到接口请求失败'
 
-        sign_dict = json.loads(sign_res.text)
-        if sign_dict["success"]:
+        sign_dict = self.safe_json_loads(html_sign)
+        if not sign_dict:
+            logger.warning(f"{site} 签到失败，签到数据解析失败：\n{html_sign}")
+            return False, '签到失败，签到数据解析失败'
+
+        # {"success":true,"message":1030}
+        if sign_dict.get("success"):
             logger.info(f"{site} 签到成功")
             return True, '签到成功'
-        elif str(sign_dict["message"]) == "date_unmatch":
+
+        # {"success":false,"message":"date_unmatch"}
+        if str(sign_dict.get("message")) == "date_unmatch":
             # 重复签到
             logger.warning(f"{site} 重复签到")
             return True, '今日已签到'
-        elif str(sign_dict["message"]) == "invalid_imagehash":
+
+        # {"success":false,"message":"invalid_imagehash"}
+        if str(sign_dict.get("message")) == "invalid_imagehash":
             # 验证码错误
             logger.warning(f"{site} 签到失败，验证码错误")
             return False, '签到失败，验证码错误'
-        else:
-            logger.warning(f"{site} 签到失败，接口返回：\n{sign_res.text}")
-            return False, '签到失败，请查看日志'
 
+        logger.warning(f"{site} 签到失败，接口返回：\n{html_sign}")
+        return False, '签到失败，请查看日志'

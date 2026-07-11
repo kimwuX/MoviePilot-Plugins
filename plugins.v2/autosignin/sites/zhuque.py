@@ -1,19 +1,16 @@
-import json
 from typing import Tuple
 from urllib.parse import urljoin
 
 from lxml import etree
 from ruamel.yaml import CommentedMap
 
-from app.core.config import settings
 from app.log import logger
 from app.plugins.autosignin.sites import _ISiteSigninHandler
-from app.utils.http import RequestUtils
 
 
 class ZhuQue(_ISiteSigninHandler):
     """
-    ZHUQUE签到
+    朱雀签到
     """
 
     @staticmethod
@@ -37,7 +34,7 @@ class ZhuQue(_ISiteSigninHandler):
         render = site_info.get("render")
         timeout = site_info.get("timeout")
 
-        logger.info(f"开始以 {self.__class__.__name__} 模型模拟登录 {site}")
+        logger.info(f"开始以 {self.__class__.__name__} 模型签到 {site}")
         signin_url = urljoin(url, "/api/gaming/fireGenshinCharacterMagic")
 
         # 获取页面html
@@ -47,43 +44,57 @@ class ZhuQue(_ISiteSigninHandler):
                                          proxy=proxy,
                                          render=render,
                                          timeout=timeout)
+
         if not html_text:
-            logger.warning(f"{site} 模拟登录失败，请检查站点连通性")
-            return False, '模拟登录失败，请检查站点连通性'
+            logger.warning(f"{site} 签到失败，请检查站点连通性")
+            return False, '签到失败，请检查站点连通性'
 
         if "login.php" in html_text:
-            logger.warning(f"{site} 模拟登录失败，Cookie已失效")
-            return False, '模拟登录失败，Cookie已失效'
+            logger.warning(f"{site} 签到失败，Cookie已失效")
+            return False, '签到失败，Cookie已失效'
 
         html = etree.HTML(html_text)
         if not html:
-            logger.warning(f"{site} 模拟登录失败，无法解析：\n{html_text}")
-            return False, f'模拟登录失败，无法解析文档'
+            logger.warning(f"{site} 签到失败，无法解析：\n{html_text}")
+            return False, f'签到失败，无法解析文档'
+
+        x_csrf_token = html.xpath("//meta[@name='x-csrf-token']/@content")
+        if not x_csrf_token:
+            logger.warning(f"{site} 签到失败，签到参数获取失败")
+            return False, '签到失败，签到参数获取失败'
+
+        headers = {
+            "x-csrf-token": str(x_csrf_token[0]),
+            "Content-Type": "application/json; charset=utf-8",
+            "User-Agent": ua
+        }
+        data = {
+            "all": 1,
+            "resetModal": "true"
+        }
 
         # 释放技能
-        msg = '失败'
-        x_csrf_token = html.xpath("//meta[@name='x-csrf-token']/@content")[0]
-        if x_csrf_token:
-            data = {
-                "all": 1,
-                "resetModal": "true"
-            }
-            headers = {
-                "x-csrf-token": str(x_csrf_token),
-                "Content-Type": "application/json; charset=utf-8",
-                "User-Agent": ua
-            }
-            skill_res = RequestUtils(headers=headers,
-                                     cookies=cookies,
-                                     proxies=settings.PROXY if proxy else None,
-                                     timeout=timeout
-                                     ).post_res(url=signin_url, json=data)
-            if skill_res and skill_res.status_code == 200:
-                # '{"status":200,"data":{"code":"FIRE_GENSHIN_CHARACTER_MAGIC_SUCCESS","bonus":0}}'
-                skill_dict = json.loads(skill_res.text)
-                if skill_dict['status'] == 200:
-                    bonus = int(skill_dict['data']['bonus'])
-                    msg = f'成功，获得{bonus}魔力'
+        html_sign = self.post_res(url=signin_url,
+                                  headers=headers,
+                                  cookies=cookies,
+                                  proxy=proxy,
+                                  timeout=timeout,
+                                  json=data)
 
-        logger.info(f'{site} 模拟登录成功，技能释放{msg}')
-        return True, f'模拟登录成功，技能释放{msg}'
+        if not html_sign:
+            logger.warning(f"{site} 签到失败，签到接口请求失败")
+            return False, '签到失败，签到接口请求失败'
+
+        sign_dict = self.safe_json_loads(html_sign)
+        if not sign_dict:
+            logger.warning(f"{site} 签到失败，签到数据解析失败：\n{html_sign}")
+            return False, '签到失败，签到数据解析失败'
+
+        # '{"status":200,"data":{"code":"FIRE_GENSHIN_CHARACTER_MAGIC_SUCCESS","bonus":0}}'
+        if sign_dict.get("status") == 200:
+            bonus = int(sign_dict['data']['bonus'])
+            logger.info(f'{site} 签到成功，获得{bonus}魔力')
+            return True, f'签到成功'
+
+        logger.warning(f"{site} 签到失败，接口返回：\n{html_sign}")
+        return False, '签到失败，请查看日志'
