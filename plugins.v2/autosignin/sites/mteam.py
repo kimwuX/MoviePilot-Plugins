@@ -14,12 +14,13 @@ class MTeam(_ISiteSigninHandler):
     馒头签到
     """
 
-    @staticmethod
-    def get_schema():
-        """
-        获取当前站点模型，只有通用模型需要返回值
-        """
-        return SiteSchema.MTorrent.value
+    # 调用 api 会导致 apikey 失效，暂时停用
+    # @staticmethod
+    # def get_schema():
+    #     """
+    #     获取当前站点模型，只有通用模型需要返回值
+    #     """
+    #     return SiteSchema.MTorrent.value
 
     def signin(self, site_info: CommentedMap) -> Tuple[bool, str]:
         """
@@ -79,8 +80,8 @@ class MTeam(_ISiteSigninHandler):
             logger.info(f"{site} 模拟登录成功")
             return True, "模拟登录成功"
         if code == 401:
-            logger.warning(f"{site} 模拟登录失败，请求头已过期")
-            return False, "模拟登录失败，请求头已过期"
+            logger.warning(f"{site} 模拟登录失败，Token已失效")
+            return False, "模拟登录失败，Token已失效"
 
         logger.warning(f"{site} 模拟登录失败，接口返回：\n{html_text}")
         return False, '模拟登录失败，请查看日志'

@@ -4,10 +4,8 @@ from urllib.parse import urljoin
 
 from ruamel.yaml import CommentedMap
 
-from app.core.config import settings
 from app.log import logger
 from app.plugins.autosignin.sites import _ISiteSigninHandler
-from app.utils.http import RequestUtils
 
 
 class TTG(_ISiteSigninHandler):
@@ -75,23 +73,28 @@ class TTG(_ISiteSigninHandler):
             'signed_timestamp': signed_timestamp,
             'signed_token': signed_token
         }
+
         # 签到
-        sign_res = RequestUtils(ua=ua,
-                                cookies=cookies,
-                                proxies=settings.PROXY if proxy else None,
-                                timeout=timeout
-                                ).post_res(url=signin_url, data=data)
-        if not sign_res or sign_res.status_code != 200:
+        html_sign = self.post_res(url=signin_url,
+                                  ua=ua,
+                                  cookies=cookies,
+                                  proxy=proxy,
+                                  timeout=timeout,
+                                  data=data)
+
+        if not html_sign:
             logger.warning(f"{site} 签到失败，签到接口请求失败")
             return False, '签到失败，签到接口请求失败'
 
-        sign_res.encoding = "utf-8"
-        if self._success_text in sign_res.text:
+        # 您已连续签到100天，奖励100积分，明天继续签到将获得100积分奖励。
+        if self._success_text in html_sign:
             logger.info(f"{site} 签到成功")
             return True, '签到成功'
-        if self._sign_text in sign_res.text:
+
+        # 亲，您今天已签到过，不要太贪哦。欢迎明天再来！
+        if self._sign_text in html_sign:
             logger.info(f"{site} 今日已签到")
             return True, '今日已签到'
 
-        logger.warning(f"{site} 签到失败，接口返回：\n{sign_res.text}")
+        logger.warning(f"{site} 签到失败，接口返回：\n{html_sign}")
         return False, '签到失败，请查看日志'
