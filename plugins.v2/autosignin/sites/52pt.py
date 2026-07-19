@@ -22,7 +22,7 @@ class PT52(_ISiteSigninHandler):
     _success_regex = [r'连续签到\s*\d+\s*天，获得\s*\d+\s*魔力值']
 
     # 签到路径
-    _signin_path = "/52bakatest0618.php"
+    _signin_path = "/52bakatestnew.php"
 
     @staticmethod
     def get_netloc():
