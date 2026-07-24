@@ -58,8 +58,7 @@ class NexusPHP(_ISiteSigninHandler):
                 SiteSchema.NexusAudiences.value,
                 SiteSchema.HDDolby.value]
 
-    @classmethod
-    def check_html(cls, site: str, html_text: str) -> Tuple[bool, str]:
+    def __check_html(self, site: str, html_text: str) -> Tuple[bool, str]:
         if "login.php" in html_text:
             logger.warning(f"{site} 签到失败，Cookie已失效")
             return False, '签到失败，Cookie已失效'
@@ -72,19 +71,58 @@ class NexusPHP(_ISiteSigninHandler):
             logger.warning(f"{site} 签到失败，无法绕过Cloudflare检测")
             return False, '签到失败，无法绕过Cloudflare检测'
 
-        if cls.test_re(text=html_text, regexs=cls._re_sl):
+        if self.test_re(text=html_text, regexs=self._re_sl):
             logger.warning(f"{site} 签到失败，无法绕过雷池检测")
             return False, '签到失败，无法绕过雷池检测'
 
-        if cls.test_re(text=html_text, regexs=cls._re_ch):
+        if self.test_re(text=html_text, regexs=self._re_ch):
             logger.warning(f"{site} 签到失败，无法通过验证")
             return False, '签到失败，无法通过验证'
 
-        if cls.test_re(text=html_text, regexs=cls._re_cf):
+        if self.test_re(text=html_text, regexs=self._re_cf):
             logger.warning(f"{site} 签到失败，签到页面已被Cloudflare防护")
             return False, '签到失败，签到页面已被Cloudflare防护'
 
         return True, ''
+
+    def __get_post_data(self, html,
+                        site: str,
+                        url: str,
+                        cookies: str,
+                        ua: str) -> Tuple[bool, str, dict]:
+        # 签到验证码
+        img_capt = html.xpath('//img[@alt="CAPTCHA"]/@src')
+        img_hash = html.xpath('//input[@name="imagehash"]/@value')
+        # 无验证码参数
+        if not img_capt and not img_hash:
+            return True, '', None
+
+        if not img_capt or not img_hash:
+            logger.warning(f"{site} 签到失败，签到参数获取失败")
+            return False, '签到失败，签到参数获取失败', None
+
+        logger.debug(f"{site} img_capt: {img_capt}")
+        logger.debug(f"{site} img_hash: {img_hash}")
+
+        # 完整验证码url
+        img_url = urljoin(url, img_capt[0])
+        logger.debug(f"{site} 验证码链接：{img_url}")
+
+        # 验证码识别
+        ocr_result = self.img_ocr(site=site,
+                                  image_url=img_url,
+                                  cookie=cookies,
+                                  ua=ua)
+        if not ocr_result or len(ocr_result) != 6:
+            logger.warning(f'{site} 签到失败，验证码识别失败')
+            return False, '签到失败，验证码识别失败', None
+
+        # 组装请求参数
+        data = {
+            'imagehash': img_hash[0],
+            'imagestring': ocr_result
+        }
+        return True, '', data
 
     def signin(self, site_info: CommentedMap) -> Tuple[bool, str]:
         """
@@ -119,7 +157,7 @@ class NexusPHP(_ISiteSigninHandler):
             return False, '签到失败，请检查站点连通性'
 
         # 页面出错
-        state, message = self.check_html(site=site, html_text=html_text)
+        state, message = self.__check_html(site=site, html_text=html_text)
         if not state:
             return state, message
 
@@ -151,7 +189,7 @@ class NexusPHP(_ISiteSigninHandler):
             return False, '签到失败，请确认是否有签到功能'
 
         # 页面出错
-        state, message = self.check_html(site=site, html_text=html_sign)
+        state, message = self.__check_html(site=site, html_text=html_sign)
         if not state:
             return state, message
 
@@ -165,24 +203,33 @@ class NexusPHP(_ISiteSigninHandler):
             logger.info(f"{site} 签到成功")
             return True, '签到成功'
 
-        # 签到按钮
-        btn_sign = None
         # 解析html
         html = etree.HTML(html_sign)
-        if html:
-            btn_sign = html.xpath("//input[@type='submit']")
-
+        # 签到按钮
+        btn_sign = html.xpath("//input[@type='submit']") if html else None
         if not btn_sign:
             logger.warning(f"{site} 签到失败，接口返回：\n{html_sign}")
             return False, '签到失败，请查看日志'
 
-        logger.debug(f"{site} 尝试 POST 请求签到")
+        # 验证码签到参数
+        state, message, data = self.__get_post_data(html=html,
+                                                    site=site,
+                                                    url=url,
+                                                    cookies=cookies,
+                                                    ua=ua)
+        if not state:
+            return state, message
+
         # 签到 - Post
+        logger.debug(f"{site} 尝试 POST 请求签到")
+        if data:
+            logger.debug(f"{site} 签到请求参数：{data}")
         html_post = self.post_res(url=signin_url,
                                   ua=ua,
                                   cookies=cookies,
                                   proxy=proxy,
-                                  timeout=timeout)
+                                  timeout=timeout,
+                                  data=data)
 
         if not html_post:
             logger.warning(f"{site} 签到失败，签到接口请求失败")
@@ -227,7 +274,7 @@ class NexusPHP(_ISiteSigninHandler):
             logger.warning(f"{site} 模拟登录失败，请检查站点连通性")
             return False, '模拟登录失败，请检查站点连通性'
 
-        state, message = self.check_html(site=site, html_text=html_text)
+        state, message = self.__check_html(site=site, html_text=html_text)
         if not state:
             return state, message
 
