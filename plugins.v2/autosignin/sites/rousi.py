@@ -19,6 +19,13 @@ class RousiPro(_ISiteSigninHandler):
         """
         return "rousi.pro"
 
+    @staticmethod
+    def _bearer_auth(value: str) -> str:
+        """
+        将 API Key 或 Authorization Token 规范化为 Bearer 认证值。
+        """
+        return value if value.lower().startswith("bearer ") else f"Bearer {value}"
+
     def signin(self, site_info: CommentedMap) -> Tuple[bool, str]:
         """
         执行签到操作
@@ -41,9 +48,9 @@ class RousiPro(_ISiteSigninHandler):
             return False, '签到失败，未配置请求头'
 
         headers = {
-            "Authorization": token if token.startswith("Bearer ") else f"Bearer {token}",
-            "User-Agent": ua,
+            "Authorization": self._bearer_auth(token),
             "Content-Type": "application/json",
+            "User-Agent": ua,
             "Referer": url
         }
         # mode=fixed/random
@@ -93,27 +100,49 @@ class RousiPro(_ISiteSigninHandler):
         proxy = site_info.get("proxy")
         # render = site_info.get("render")
         timeout = site_info.get("timeout")
+        apikey = site_info.get("apikey")
         token = site_info.get("token")
 
         logger.info(f"开始以 {self.__class__.__name__} 模型模拟登录 {site}")
-        login_url = urljoin(url, "/api/me")
 
-        if not token:
-            logger.warning(f"{site} 模拟登录失败，未配置请求头")
-            return False, '模拟登录失败，未配置请求头'
+        if not apikey and not token:
+            logger.warning(f"{site} 模拟登录失败，未配置请求头或令牌")
+            return False, '模拟登录失败，未配置请求头或令牌'
 
-        headers = {
-            "Authorization": token if token.startswith("Bearer ") else f"Bearer {token}",
+        base_headers = {
             "User-Agent": ua,
             "Referer": url
         }
+        html_text = None
 
-        # 获取用户信息，更新最后访问时间
-        html_text = self.get_page_source(url=login_url,
-                                         headers=headers,
-                                         proxy=proxy,
-                                         timeout=timeout,
-                                         check_code=False)
+        # API Key 模拟登录
+        if apikey:
+            html_text = self.get_page_source(url=urljoin(url, "/api/v1/profile"),
+                                             headers={
+                                                 **base_headers,
+                                                 "Authorization": self._bearer_auth(apikey)
+                                             },
+                                             proxy=proxy,
+                                             timeout=timeout,
+                                             check_code=False)
+
+            temp_dict = self.safe_json_loads(html_text)
+            if temp_dict and temp_dict.get("code", -1) == 0:
+                logger.info(f"{site} 模拟登录成功")
+                return True, "模拟登录成功"
+            if token:
+                logger.info(f"{site} API Key 模拟登录失败，回退 Authorization")
+
+        # Authorization 模拟登录
+        if token:
+            html_text = self.get_page_source(url=urljoin(url, "/api/me"),
+                                             headers={
+                                                 **base_headers,
+                                                 "Authorization": self._bearer_auth(token)
+                                             },
+                                             proxy=proxy,
+                                             timeout=timeout,
+                                             check_code=False)
 
         if not html_text:
             logger.warning(f"{site} 模拟登录失败，请检查站点连通性")
@@ -125,12 +154,15 @@ class RousiPro(_ISiteSigninHandler):
             return False, '模拟登录失败，登录数据解析失败'
 
         code = info_dict.get("code")
-        if code == 101:
-            logger.warning(f"{site} 模拟登录失败，Token已失效")
-            return False, '模拟登录失败，Token已失效'
         if code == 0:
             logger.info(f"{site} 模拟登录成功")
             return True, "模拟登录成功"
+        if code == 101:
+            logger.warning(f"{site} 模拟登录失败，Token已失效")
+            return False, '模拟登录失败，Token已失效'
+        if code == 401:
+            logger.warning(f"{site} 模拟登录失败，API Key已失效")
+            return False, '模拟登录失败，API Key已失效'
 
         logger.warning(f"{site} 模拟登录失败，{info_dict.get('message')}")
         return False, '模拟登录失败，请查看日志'

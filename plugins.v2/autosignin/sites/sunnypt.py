@@ -19,6 +19,13 @@ class SunnyPT(_ISiteSigninHandler):
         """
         return "sunnypt.top"
 
+    @staticmethod
+    def _bearer_auth(value: str) -> str:
+        """
+        将 Authorization Token 规范化为 Bearer 认证值。
+        """
+        return value if value.lower().startswith("bearer ") else f"Bearer {value}"
+
     def signin(self, site_info: CommentedMap) -> Tuple[bool, str]:
         """
         执行签到操作
@@ -42,7 +49,7 @@ class SunnyPT(_ISiteSigninHandler):
             return False, '签到失败，未配置请求头'
 
         headers = {
-            "Authorization": token if token.startswith("Bearer ") else f"Bearer {token}",
+            "Authorization": self._bearer_auth(token),
             "User-Agent": ua,
             "Referer": url
         }
@@ -64,7 +71,7 @@ class SunnyPT(_ISiteSigninHandler):
             return False, '签到失败，签到数据解析失败'
 
         code = sign_dict.get("code")
-        if code == 400000:
+        if code == 401000:
             logger.warning(f"{site} 签到失败，Token已失效")
             return False, '签到失败，Token已失效'
         if code == 400001:
@@ -101,7 +108,7 @@ class SunnyPT(_ISiteSigninHandler):
             return False, '模拟登录失败，未配置请求头'
 
         headers = {
-            "Authorization": token if token.startswith("Bearer ") else f"Bearer {token}",
+            "Authorization": self._bearer_auth(token),
             "User-Agent": ua,
             "Referer": url
         }
