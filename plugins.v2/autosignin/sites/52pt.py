@@ -21,9 +21,6 @@ class PT52(_ISiteSigninHandler):
     # 连续签到 84 天，获得 127 魔力值
     _success_regex = [r'连续签到\s*\d+\s*天，获得\s*\d+\s*魔力值']
 
-    # 签到路径
-    _signin_path = "/52bakatestnew.php"
-
     @staticmethod
     def get_netloc():
         """
@@ -47,9 +44,42 @@ class PT52(_ISiteSigninHandler):
         timeout = site_info.get("timeout")
 
         logger.info(f"开始以 {self.__class__.__name__} 模型签到 {site}")
-        signin_url = urljoin(url, self._signin_path)
 
-        # 判断今日是否已签到
+        # 打开页面
+        html_text = self.get_page_source(url=url,
+                                         ua=ua,
+                                         cookies=cookies,
+                                         proxy=proxy,
+                                         render=render,
+                                         timeout=timeout)
+
+        if not html_text:
+            logger.warning(f"{site} 签到失败，请检查站点连通性")
+            return False, '签到失败，请检查站点连通性'
+
+        if "login.php" in html_text:
+            logger.warning(f"{site} 签到失败，Cookie已失效")
+            return False, '签到失败，Cookie已失效'
+
+        # 已签到
+        # <span id="gamelist" class="dropmenu" style="display: none">
+        # <ul><li><a href="nebuirobot.php"><b><b>签到赚魔力</b></b></a></li></ul>
+        # </span>
+        if 'id="gamelist"' in html_text:
+            logger.info(f"{site} 今日已签到")
+            return True, '今日已签到'
+
+        # 签到地址
+        # <a id="game" href="52bakatest0818.php"><b><font color="red"><b>签到赚魔力</b></font></b></a>
+        mat_url = re.search(r'<a id="game" href="([\w\-\.]+?)">', html_text)
+        signin_url = urljoin(url, mat_url[1]) if mat_url else None
+
+        if not signin_url:
+            logger.warning(f"{site} 签到失败，签到地址获取失败")
+            return False, '签到失败，签到地址获取失败'
+        logger.debug(f"{site} 签到地址：{signin_url}")
+
+        # 签到页面
         html_text = self.get_page_source(url=signin_url,
                                          ua=ua,
                                          cookies=cookies,
