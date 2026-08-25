@@ -1,3 +1,4 @@
+import uuid
 from typing import Tuple
 from urllib.parse import urljoin
 
@@ -35,23 +36,24 @@ class RousiPro(_ISiteSigninHandler):
         site = site_info.get("name")
         url = site_info.get("url")
         ua = site_info.get("ua")
+        cookies = site_info.get("cookie")
         proxy = site_info.get("proxy")
         # render = site_info.get("render")
         timeout = site_info.get("timeout")
         token = site_info.get("token")
 
         logger.info(f"开始以 {self.__class__.__name__} 模型签到 {site}")
-        signin_url = urljoin(url, "/api/points/attendance")
+        signin_url = urljoin(url, "/api/v1/me/attendance")
 
         if not token:
             logger.warning(f"{site} 签到失败，未配置请求头")
             return False, '签到失败，未配置请求头'
 
         headers = {
-            "Authorization": self._bearer_auth(token),
-            "Content-Type": "application/json",
+            "Idempotency-Key": str(uuid.uuid1()),
+            "X-Csrf-Token": token,
             "User-Agent": ua,
-            "Referer": url
+            "Origin": url
         }
         # mode=fixed/random
         data = {"mode": "random"}
@@ -59,6 +61,7 @@ class RousiPro(_ISiteSigninHandler):
         # 签到
         html_text = self.post_res(url=signin_url,
                                   headers=headers,
+                                  cookies=cookies,
                                   proxy=proxy,
                                   timeout=timeout,
                                   json=data,
@@ -73,19 +76,26 @@ class RousiPro(_ISiteSigninHandler):
             logger.warning(f"{site} 签到失败，签到数据解析失败：\n{html_text}")
             return False, '签到失败，签到数据解析失败'
 
-        code = sign_dict.get("code")
-        if code == 101:
+        status = sign_dict.get("status")
+        if status == 401:
+            logger.warning(f"{site} 签到失败，Cookie已失效")
+            return False, '签到失败，Cookie已失效'
+        if status == 403:
             logger.warning(f"{site} 签到失败，Token已失效")
             return False, '签到失败，Token已失效'
-        if code == 1:
+        if status == 409:
             logger.info(f"{site} 今日已签到")
             return True, '今日已签到'
-        if code == 0:
-            bonus = sign_dict.get("data", {}).get("bonus")
+        if status:
+            logger.warning(f"{site} 签到失败，{sign_dict.get('title')}({sign_dict.get('detail')})")
+            return False, '签到失败，请查看日志'
+
+        bonus = sign_dict.get("total_reward")
+        if bonus:
             logger.info(f'{site} 签到成功，获得{bonus}魔力值')
             return True, "签到成功"
 
-        logger.warning(f"{site} 签到失败，{sign_dict.get('message')}")
+        logger.warning(f"{site} 签到失败，接口返回：\n{html_text}")
         return False, '签到失败，请查看日志'
 
     def login(self, site_info: CommentedMap) -> Tuple[bool, str]:
