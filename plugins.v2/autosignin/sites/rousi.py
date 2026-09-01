@@ -67,7 +67,11 @@ class RousiPro(_ISiteSigninHandler):
 
         code = sign_dict.get("code")
         if code == 0:
-            logger.info(f'{site} 签到成功，获得{sign_dict.get('reward')}魔力值')
+            bonus = sign_dict.get("data", {}).get("reward")
+            if bonus:
+                logger.info(f'{site} 签到成功，获得{bonus}魔力值')
+            else:
+                logger.info(f'{site} 签到成功')
             return True, "签到成功"
         if code == 1:
             logger.info(f"{site} 今日已签到")
