@@ -59,7 +59,7 @@ class NexusPHP(_ISiteSigninHandler):
                 SiteSchema.HDDolby.value]
 
     def __check_html(self, site: str, html_text: str) -> Tuple[bool, str]:
-        if "login.php" in html_text:
+        if "takelogin.php" in html_text:
             logger.warning(f"{site} 签到失败，Cookie已失效")
             return False, '签到失败，Cookie已失效'
 

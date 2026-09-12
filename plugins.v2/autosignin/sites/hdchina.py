@@ -67,7 +67,7 @@ class HDChina(_ISiteSigninHandler):
             logger.warning(f"{site} 签到失败，请检查站点连通性")
             return False, '签到失败，请检查站点连通性'
 
-        if "login.php" in html_res.text or "阻断页面" in html_res.text:
+        if "takelogin.php" in html_res.text or "阻断页面" in html_res.text:
             logger.warning(f"{site} 签到失败，Cookie失效")
             return False, '签到失败，Cookie失效'
 
