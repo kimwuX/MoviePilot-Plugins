@@ -1,6 +1,5 @@
 import datetime
 import random
-import re
 from typing import Tuple
 from urllib.parse import urljoin
 
@@ -25,7 +24,11 @@ class U2(_ISiteSigninHandler):
                    '<a href="showup.php">已簽到</a>']
 
     # 签到成功
-    _success_text = "window.location.href = 'showup.php';</script>"
+    # <script type="text/javascript">window.location.href = 'showup.php';</script>
+    # <script type="text/javascript">window.location.href = 'https://u2.dmhy.org/showup.php';</script>
+    _succeed_regex = [r'<script type="text\/javascript">'
+                      r"window\.location\.href\s*=\s*'(?:https:\/\/u2\.dmhy\.org\/)?showup\.php';"
+                      r'<\/script>']
 
     @staticmethod
     def get_netloc():
@@ -128,8 +131,7 @@ class U2(_ISiteSigninHandler):
             return False, '签到失败，签到接口请求失败'
 
         # 判断是否签到成功
-        # <script type="text/javascript">window.location.href = 'showup.php';</script>
-        if self._success_text in html_sign:
+        if self.test_re(text=html_sign, regexs=self._succeed_regex):
             logger.info(f"{site} 签到成功")
             return True, '签到成功'
 
