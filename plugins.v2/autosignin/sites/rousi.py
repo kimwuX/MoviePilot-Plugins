@@ -4,6 +4,7 @@ from urllib.parse import urljoin
 
 from ruamel.yaml import CommentedMap
 
+from app.core.config import settings
 from app.log import logger
 from app.plugins.autosignin.sites import _ISiteSigninHandler
 
@@ -32,6 +33,10 @@ class RousiPro(_ISiteSigninHandler):
         proxy = site_info.get("proxy")
         timeout = site_info.get("timeout")
         apikey = site_info.get("apikey")
+
+        # 替换默认 User-Agent
+        if ua and ua == settings.USER_AGENT:
+            ua = settings.NORMAL_USER_AGENT
 
         logger.info(f"开始以 {self.__class__.__name__} 模型签到 {site}")
         signin_url = urljoin(url, "/api/points/attendance")
@@ -95,6 +100,10 @@ class RousiPro(_ISiteSigninHandler):
         proxy = site_info.get("proxy")
         timeout = site_info.get("timeout")
         apikey = site_info.get("apikey")
+
+        # 替换默认 User-Agent
+        if ua and ua == settings.USER_AGENT:
+            ua = settings.NORMAL_USER_AGENT
 
         logger.info(f"开始以 {self.__class__.__name__} 模型模拟登录 {site}")
         login_url = urljoin(url, "/api/v1/profile")

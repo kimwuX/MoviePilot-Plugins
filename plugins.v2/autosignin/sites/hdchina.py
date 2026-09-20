@@ -39,6 +39,10 @@ class HDChina(_ISiteSigninHandler):
         proxy = site_info.get("proxy")
         timeout = site_info.get("timeout")
 
+        # 替换默认 User-Agent
+        if ua and ua == settings.USER_AGENT:
+            ua = settings.NORMAL_USER_AGENT
+
         logger.info(f"开始以 {self.__class__.__name__} 模型签到 {site}")
         signin_url = urljoin(url, "/plugin_sign-in.php?cmd=signin")
 

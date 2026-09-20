@@ -36,6 +36,10 @@ class YemaPT(_ISiteSigninHandler):
         # render = site_info.get("render")
         timeout = site_info.get("timeout")
 
+        # 替换默认 User-Agent
+        if ua and ua == settings.USER_AGENT:
+            ua = settings.NORMAL_USER_AGENT
+
         logger.info(f"开始以 {self.__class__.__name__} 模型签到 {site}")
         checklist_url = urljoin(url, "/api/consumer/fetchCheckInPageInfo")
         signin_url = urljoin(url, "/api/consumer/checkInNext")
@@ -111,6 +115,10 @@ class YemaPT(_ISiteSigninHandler):
         proxy = site_info.get("proxy")
         # render = site_info.get("render")
         timeout = site_info.get("timeout")
+
+        # 替换默认 User-Agent
+        if ua and ua == settings.USER_AGENT:
+            ua = settings.NORMAL_USER_AGENT
 
         logger.info(f"开始以 {self.__class__.__name__} 模型模拟登录 {site}")
         login_url = urljoin(url, "/api/user/profile")

@@ -3,6 +3,7 @@ from urllib.parse import urljoin
 
 from ruamel.yaml import CommentedMap
 
+from app.core.config import settings
 from app.log import logger
 from app.modules.indexer.parser import SiteSchema
 from app.plugins.autosignin.sites import _ISiteSigninHandler
@@ -45,6 +46,10 @@ class MTeam(_ISiteSigninHandler):
         timeout = site_info.get("timeout")
         apikey = site_info.get("apikey")
         token = site_info.get("token")
+
+        # 替换默认 User-Agent
+        if ua and ua == settings.USER_AGENT:
+            ua = settings.NORMAL_USER_AGENT
 
         logger.info(f"开始以 {self.__class__.__name__} 模型模拟登录 {site}")
         domain = StringUtils.get_url_domain(url)

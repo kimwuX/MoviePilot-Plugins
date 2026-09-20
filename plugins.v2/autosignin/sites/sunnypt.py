@@ -2,6 +2,7 @@ from typing import Tuple
 
 from ruamel.yaml import CommentedMap
 
+from app.core.config import settings
 from app.log import logger
 from app.plugins.autosignin.sites import _ISiteSigninHandler
 from app.utils.string import StringUtils
@@ -39,6 +40,10 @@ class SunnyPT(_ISiteSigninHandler):
         # render = site_info.get("render")
         timeout = site_info.get("timeout")
         token = site_info.get("token")
+
+        # 替换默认 User-Agent
+        if ua and ua == settings.USER_AGENT:
+            ua = settings.NORMAL_USER_AGENT
 
         logger.info(f"开始以 {self.__class__.__name__} 模型签到 {site}")
         domain = StringUtils.get_url_domain(url)
@@ -98,6 +103,10 @@ class SunnyPT(_ISiteSigninHandler):
         # render = site_info.get("render")
         timeout = site_info.get("timeout")
         token = site_info.get("token")
+
+        # 替换默认 User-Agent
+        if ua and ua == settings.USER_AGENT:
+            ua = settings.NORMAL_USER_AGENT
 
         logger.info(f"开始以 {self.__class__.__name__} 模型模拟登录 {site}")
         domain = StringUtils.get_url_domain(url)

@@ -5,6 +5,7 @@ from urllib.parse import urljoin
 from lxml import etree
 from ruamel.yaml import CommentedMap
 
+from app.core.config import settings
 from app.helper.cloudflare import under_challenge
 from app.log import logger
 from app.modules.indexer.parser import SiteSchema
@@ -137,9 +138,14 @@ class NexusPHP(_ISiteSigninHandler):
         proxy = site_info.get("proxy")
         render = site_info.get("render")
         timeout = site_info.get("timeout")
+
         if not url:
             logger.warning(f"{site} 签到失败，未配置站点地址")
             return False, '签到失败，未配置站点地址'
+
+        # 替换默认 User-Agent
+        if ua and ua == settings.USER_AGENT:
+            ua = settings.NORMAL_USER_AGENT
 
         logger.info(f"开始以 {self.__class__.__name__} 通用模型签到 {site}")
         usercp_url = urljoin(url, "/usercp.php")
@@ -256,9 +262,14 @@ class NexusPHP(_ISiteSigninHandler):
         proxy = site_info.get("proxy")
         render = site_info.get("render")
         timeout = site_info.get("timeout")
+
         if not url:
             logger.warning(f"{site} 模拟登录失败，未配置站点地址")
             return False, '模拟登录失败，未配置站点地址'
+
+        # 替换默认 User-Agent
+        if ua and ua == settings.USER_AGENT:
+            ua = settings.NORMAL_USER_AGENT
 
         logger.info(f"开始以 {self.__class__.__name__} 通用模型模拟登录 {site}")
         login_url = urljoin(url, "/index.php")

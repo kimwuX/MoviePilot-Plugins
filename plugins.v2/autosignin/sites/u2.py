@@ -45,12 +45,15 @@ class U2(_ISiteSigninHandler):
         """
         site = site_info.get("name")
         url = site_info.get("url")
-        # ua = site_info.get("ua")
-        ua = settings.NORMAL_USER_AGENT
+        ua = site_info.get("ua")
         cookies = site_info.get("cookie")
         proxy = site_info.get("proxy")
         render = site_info.get("render")
         timeout = site_info.get("timeout")
+
+        # 替换默认 User-Agent
+        if ua and ua == settings.USER_AGENT:
+            ua = settings.NORMAL_USER_AGENT
 
         now = datetime.datetime.now()
         # 判断当前时间是否小于9点
