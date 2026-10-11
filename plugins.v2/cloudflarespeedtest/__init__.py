@@ -30,7 +30,7 @@ class CloudflareSpeedTest(_PluginBase):
     # 插件图标
     plugin_icon = "cloudflare.jpg"
     # 插件版本
-    plugin_version = "1.5.3"
+    plugin_version = "1.5.4"
     # 插件作者
     plugin_author = "thsrite"
     # 作者主页
@@ -43,6 +43,7 @@ class CloudflareSpeedTest(_PluginBase):
     auth_level = 1
 
     # 私有属性
+    _plugin_manager = None
     _cf_ip = None
     _scheduler = None
     _cron = None
@@ -68,6 +69,7 @@ class CloudflareSpeedTest(_PluginBase):
     __task_lock: RLock = None
 
     def init_plugin(self, config: dict = None):
+        self._plugin_manager = PluginManager()
         self.__exit_event = ThreadEvent()
         self.__task_lock = RLock()
         # 停止现有任务
@@ -131,7 +133,7 @@ class CloudflareSpeedTest(_PluginBase):
         self._cf_ipv6 = "ipv6.txt"
         self._result_file = "result.txt"
 
-        if not PluginManager.is_plugin_exists("CustomHosts"):
+        if not self._plugin_manager.is_plugin_exists("CustomHosts"):
             logger.error(f"当前插件依赖于【自定义Hosts】插件，请先安装并配置【自定义Hosts】")
             return
 
