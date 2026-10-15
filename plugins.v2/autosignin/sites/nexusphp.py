@@ -17,6 +17,9 @@ class NexusPHP(_ISiteSigninHandler):
     NexusPHP通用签到
     """
 
+    # login
+    _re_login = [r'takelogin\.php', r'loginvalidate\.php']
+
     # cloudflare challenge
     _re_cf = [r'cf-turnstile']
 
@@ -60,7 +63,7 @@ class NexusPHP(_ISiteSigninHandler):
                 SiteSchema.HDDolby.value]
 
     def __check_html(self, site: str, html_text: str) -> Tuple[bool, str]:
-        if "takelogin.php" in html_text:
+        if self.test_re(text=html_text, regexs=self._re_login):
             logger.warning(f"{site} 签到失败，Cookie已失效")
             return False, '签到失败，Cookie已失效'
 
