@@ -49,12 +49,12 @@ class HDUPT(_ISiteSigninHandler):
         signin_url = urljoin(url, "/added.php?action=qiandao")
 
         # 获取页面html
-        html_text = self.get_page_source(url=url,
-                                         ua=ua,
-                                         cookies=cookies,
-                                         proxy=proxy,
-                                         render=render,
-                                         timeout=timeout)
+        _, html_text = self.get_res(url=url,
+                                    ua=ua,
+                                    cookies=cookies,
+                                    proxy=proxy,
+                                    render=render,
+                                    timeout=timeout)
 
         if not html_text:
             logger.warning(f"{site} 签到失败，请检查站点连通性")
@@ -69,12 +69,12 @@ class HDUPT(_ISiteSigninHandler):
             return True, '今日已签到'
 
         # 签到
-        html_sign = self.get_page_source(url=signin_url,
-                                         ua=ua,
-                                         cookies=cookies,
-                                         proxy=proxy,
-                                         render=render,
-                                         timeout=timeout)
+        _, html_sign = self.get_res(url=signin_url,
+                                    ua=ua,
+                                    cookies=cookies,
+                                    proxy=proxy,
+                                    render=render,
+                                    timeout=timeout)
 
         if not html_sign:
             logger.warning(f"{site} 签到失败，请检查站点连通性")

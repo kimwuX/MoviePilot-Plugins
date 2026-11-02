@@ -123,11 +123,11 @@ class SunnyPT(_ISiteSigninHandler):
         }
 
         # 获取用户信息，更新最后访问时间
-        html_text = self.get_page_source(url=login_url,
-                                         headers=headers,
-                                         proxy=proxy,
-                                         timeout=timeout,
-                                         check_code=False)
+        _, html_text = self.get_res(url=login_url,
+                                    headers=headers,
+                                    proxy=proxy,
+                                    timeout=timeout,
+                                    check_code=False)
 
         if not html_text:
             logger.warning(f"{site} 模拟登录失败，请检查站点连通性")

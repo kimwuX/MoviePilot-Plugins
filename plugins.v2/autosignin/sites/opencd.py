@@ -46,12 +46,12 @@ class OpenCD(_ISiteSigninHandler):
         signin_url = urljoin(url, "/plugin_sign-in.php?cmd=signin")
 
         # 判断今日是否已签到
-        html_text = self.get_page_source(url=url,
-                                         ua=ua,
-                                         cookies=cookies,
-                                         proxy=proxy,
-                                         render=render,
-                                         timeout=timeout)
+        _, html_text = self.get_res(url=url,
+                                    ua=ua,
+                                    cookies=cookies,
+                                    proxy=proxy,
+                                    render=render,
+                                    timeout=timeout)
 
         if not html_text:
             logger.warning(f"{site} 签到失败，请检查站点连通性")
@@ -66,11 +66,11 @@ class OpenCD(_ISiteSigninHandler):
             return True, '今日已签到'
 
         # 获取签到参数
-        html_image = self.get_page_source(url=urljoin(url, "/plugin_sign-in.php"),
-                                          ua=ua,
-                                          cookies=cookies,
-                                          proxy=proxy,
-                                          render=render)
+        _, html_image = self.get_res(url=urljoin(url, "/plugin_sign-in.php"),
+                                     ua=ua,
+                                     cookies=cookies,
+                                     proxy=proxy,
+                                     render=render)
 
         if not html_image:
             logger.warning(f"{site} 签到失败，请检查站点连通性")

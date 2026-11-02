@@ -47,12 +47,12 @@ class HDSky(_ISiteSigninHandler):
         get_image_url = urljoin(url, "/image_code_ajax.php")
 
         # 判断今日是否已签到
-        html_text = self.get_page_source(url=url,
-                                         ua=ua,
-                                         cookies=cookies,
-                                         proxy=proxy,
-                                         render=render,
-                                         timeout=timeout)
+        _, html_text = self.get_res(url=url,
+                                    ua=ua,
+                                    cookies=cookies,
+                                    proxy=proxy,
+                                    render=render,
+                                    timeout=timeout)
 
         if not html_text:
             logger.warning(f"{site} 签到失败，请检查站点连通性")

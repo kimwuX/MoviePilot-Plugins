@@ -65,12 +65,12 @@ class TJUPT(_ISiteSigninHandler):
         signin_url = urljoin(url, self._signin_path)
 
         # 获取北洋签到页面html
-        html_text = self.get_page_source(url=signin_url,
-                                         ua=ua,
-                                         cookies=cookies,
-                                         proxy=proxy,
-                                         render=render,
-                                         timeout=timeout)
+        _, html_text = self.get_res(url=signin_url,
+                                    ua=ua,
+                                    cookies=cookies,
+                                    proxy=proxy,
+                                    render=render,
+                                    timeout=timeout)
 
         # 获取签到后返回html，判断是否签到成功
         if not html_text:

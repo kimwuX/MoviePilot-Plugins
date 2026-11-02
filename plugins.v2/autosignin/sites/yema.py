@@ -45,13 +45,13 @@ class YemaPT(_ISiteSigninHandler):
         signin_url = urljoin(url, "/api/consumer/checkInNext")
 
         # 签到记录
-        html_text = self.get_page_source(url=checklist_url,
-                                         ua=ua,
-                                         cookies=cookies,
-                                         proxy=proxy,
-                                         timeout=timeout,
-                                         referer=url,
-                                         accept_type="application/json, text/plain, */*")
+        _, html_text = self.get_res(url=checklist_url,
+                                    ua=ua,
+                                    cookies=cookies,
+                                    proxy=proxy,
+                                    timeout=timeout,
+                                    referer=url,
+                                    accept_type="application/json, text/plain, */*")
 
         if not html_text:
             logger.warning(f"{site} 签到失败，请检查站点连通性")
@@ -124,13 +124,13 @@ class YemaPT(_ISiteSigninHandler):
         login_url = urljoin(url, "/api/user/profile")
 
         # 获取用户信息，更新最后访问时间
-        html_text = self.get_page_source(url=login_url,
-                                         ua=ua,
-                                         cookies=cookies,
-                                         proxy=proxy,
-                                         timeout=timeout,
-                                         referer=url,
-                                         accept_type="application/json, text/plain, */*")
+        _, html_text = self.get_res(url=login_url,
+                                    ua=ua,
+                                    cookies=cookies,
+                                    proxy=proxy,
+                                    timeout=timeout,
+                                    referer=url,
+                                    accept_type="application/json, text/plain, */*")
 
         if not html_text:
             logger.warning(f"{site} 模拟登录失败，请检查站点连通性")

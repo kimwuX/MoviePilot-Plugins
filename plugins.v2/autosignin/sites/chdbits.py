@@ -61,13 +61,13 @@ class CHDBits(_ISiteSigninHandler):
         signin_url = urljoin(url, self._signin_path)
 
         # 判断今日是否已签到
-        html_text = self.get_page_source(url=signin_url,
-                                         ua=ua,
-                                         cookies=cookies,
-                                         proxy=proxy,
-                                         render=render,
-                                         timeout=timeout,
-                                         referer=url)
+        _, html_text = self.get_res(url=signin_url,
+                                    ua=ua,
+                                    cookies=cookies,
+                                    proxy=proxy,
+                                    render=render,
+                                    timeout=timeout,
+                                    referer=url)
 
         if not html_text:
             logger.warning(f"{site} 签到失败，请检查站点连通性")

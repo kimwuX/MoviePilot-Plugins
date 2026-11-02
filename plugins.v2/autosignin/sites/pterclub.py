@@ -42,12 +42,12 @@ class PTerClub(_ISiteSigninHandler):
         signin_url = urljoin(url, "/attendance-ajax.php")
 
         # 签到
-        html_text = self.get_page_source(url=signin_url,
-                                         ua=ua,
-                                         cookies=cookies,
-                                         proxy=proxy,
-                                         render=render,
-                                         timeout=timeout)
+        _, html_text = self.get_res(url=signin_url,
+                                    ua=ua,
+                                    cookies=cookies,
+                                    proxy=proxy,
+                                    render=render,
+                                    timeout=timeout)
 
         if not html_text:
             logger.warning(f"{site} 签到失败，请检查站点连通性")

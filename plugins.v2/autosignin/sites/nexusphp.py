@@ -30,7 +30,7 @@ class NexusPHP(_ISiteSigninHandler):
     _re_ch = [r'dragContainer', r'dragBg', r'dragText', r'dragHandler']
 
     # 没有签到功能
-    _re_404 = [r'File not found', r'404 Not Found']
+    # _re_404 = [r'File not found', r'404 Not Found']
 
     # 已签到
     # ↓ 签到入口 ↓
@@ -62,7 +62,7 @@ class NexusPHP(_ISiteSigninHandler):
                 SiteSchema.NexusAudiences.value,
                 SiteSchema.HDDolby.value]
 
-    def __check_html(self, site: str, html_text: str) -> Tuple[bool, str]:
+    def __check_html(self, site: str, html_text: str, status_code:int) -> Tuple[bool, str]:
         if self.test_re(text=html_text, regexs=self._re_login):
             logger.warning(f"{site} 签到失败，Cookie已失效")
             return False, '签到失败，Cookie已失效'
@@ -71,7 +71,7 @@ class NexusPHP(_ISiteSigninHandler):
             logger.warning(f"{site} 签到失败，两步验证拦截")
             return False, '签到失败，两步验证拦截'
 
-        if under_challenge(html_text):
+        if status_code == 403 or under_challenge(html_text):
             logger.warning(f"{site} 签到失败，无法绕过Cloudflare检测")
             return False, '签到失败，无法绕过Cloudflare检测'
 
@@ -154,12 +154,12 @@ class NexusPHP(_ISiteSigninHandler):
         usercp_url = urljoin(url, "/usercp.php")
         signin_url = urljoin(url, "/attendance.php")
 
-        html_text = self.get_page_source(url=usercp_url,
-                                         ua=ua,
-                                         cookies=cookies,
-                                         proxy=proxy,
-                                         render=render,
-                                         timeout=timeout)
+        _, html_text = self.get_res(url=usercp_url,
+                                    ua=ua,
+                                    cookies=cookies,
+                                    proxy=proxy,
+                                    render=render,
+                                    timeout=timeout)
 
         if not html_text:
             logger.warning(f"{site} 签到失败，请检查站点连通性")
@@ -180,25 +180,26 @@ class NexusPHP(_ISiteSigninHandler):
                 return True, '今日已签到'
 
         # 签到 - Get
-        html_sign = self.get_page_source(url=signin_url,
-                                         ua=ua,
-                                         cookies=cookies,
-                                         proxy=proxy,
-                                         render=render,
-                                         timeout=timeout,
-                                         check_code=False)
+        status_code, html_sign = self.get_res(url=signin_url,
+                                              ua=ua,
+                                              cookies=cookies,
+                                              proxy=proxy,
+                                              render=render,
+                                              timeout=timeout,
+                                              check_code=False)
 
         if not html_sign:
             logger.warning(f"{site} 签到失败，无法打开签到页面")
             return False, '签到失败，无法打开签到页面'
 
-        if self.test_re(text=html_sign, regexs=self._re_404,
-                        flags=re.RegexFlag.IGNORECASE):
+        if status_code == 404:
             logger.warning(f"{site} 签到失败，请确认是否有签到功能")
             return False, '签到失败，请确认是否有签到功能'
 
         # 页面出错
-        state, message = self.__check_html(site=site, html_text=html_sign)
+        state, message = self.__check_html(site=site,
+                                           html_text=html_sign,
+                                           status_code=status_code)
         if not state:
             return state, message
 
@@ -277,12 +278,12 @@ class NexusPHP(_ISiteSigninHandler):
         logger.info(f"开始以 {self.__class__.__name__} 通用模型模拟登录 {site}")
         login_url = urljoin(url, "/index.php")
 
-        html_text = self.get_page_source(url=login_url,
-                                         ua=ua,
-                                         cookies=cookies,
-                                         proxy=proxy,
-                                         render=render,
-                                         timeout=timeout)
+        _, html_text = self.get_res(url=login_url,
+                                    ua=ua,
+                                    cookies=cookies,
+                                    proxy=proxy,
+                                    render=render,
+                                    timeout=timeout)
 
         if not html_text:
             logger.warning(f"{site} 模拟登录失败，请检查站点连通性")

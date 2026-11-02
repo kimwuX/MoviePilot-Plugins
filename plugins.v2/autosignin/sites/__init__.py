@@ -77,16 +77,16 @@ class _ISiteSigninHandler(metaclass=ABCMeta):
         pass
 
     @classmethod
-    def get_page_source(cls, url: str,
-                        headers: dict = None,
-                        ua: str = None,
-                        cookies: str = None,
-                        proxy: bool = False,
-                        render: bool = False,
-                        timeout: int = None,
-                        referer: str = None,
-                        accept_type: str = None,
-                        check_code: bool = True) -> str:
+    def get_res(cls, url: str,
+                headers: dict = None,
+                ua: str = None,
+                cookies: str = None,
+                proxy: bool = False,
+                render: bool = False,
+                timeout: int = None,
+                referer: str = None,
+                accept_type: str = None,
+                check_code: bool = True) -> str:
         """
         获取页面源码
         :param url: Url地址
@@ -99,15 +99,16 @@ class _ISiteSigninHandler(metaclass=ABCMeta):
         :param referer: Referer头部信息
         :param accept_type: Accept头部信息
         :param check_code: 是否检查 HTTP 返回状态码
-        :return: 页面源码
+        :return: 状态码，页面源码
         """
         # 浏览器仿真
         if render:
-            return PlaywrightHelper().get_page_source(url=url,
-                                                      cookies=cookies,
-                                                      ua=ua,
-                                                      proxies=settings.PROXY_SERVER if proxy else None,
-                                                      timeout=timeout or 60)
+            return 0, PlaywrightHelper().get_page_source(url=url,
+                                                         cookies=cookies,
+                                                         ua=ua,
+                                                         proxies=settings.PROXY_SERVER if proxy else None,
+                                                         # headles = True,
+                                                         timeout=timeout or 60)
 
         res = RequestUtils(headers=headers,
                            ua=ua,
@@ -130,13 +131,13 @@ class _ISiteSigninHandler(metaclass=ABCMeta):
                                ).get_res(url=url, allow_redirects=False)
 
         if res is None:
-            return None
+            return None, None
 
         # 403-cloudflare, 468-safeline
         if check_code and res.status_code not in (200, 500, 403, 468):
-            return None
+            return res.status_code, None
 
-        return cls.decode_response(res)
+        return res.status_code, cls.decode_response(res)
 
     @classmethod
     def post_res(cls, url: str,

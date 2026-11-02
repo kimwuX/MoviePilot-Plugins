@@ -45,12 +45,12 @@ class Hares(_ISiteSigninHandler):
         signin_url = urljoin(url, "/attendance.php?action=sign")
 
         # 获取页面html
-        html_text = self.get_page_source(url=url,
-                                         ua=ua,
-                                         cookies=cookies,
-                                         proxy=proxy,
-                                         render=render,
-                                         timeout=timeout)
+        _, html_text = self.get_res(url=url,
+                                    ua=ua,
+                                    cookies=cookies,
+                                    proxy=proxy,
+                                    render=render,
+                                    timeout=timeout)
 
         if not html_text:
             logger.warning(f"{site} 签到失败，请检查站点连通性")
@@ -64,12 +64,12 @@ class Hares(_ISiteSigninHandler):
         #     logger.info(f"今日已签到")
         #     return True, '今日已签到'
 
-        html_sign = self.get_page_source(url=signin_url,
-                                         ua=ua,
-                                         cookies=cookies,
-                                         proxy=proxy,
-                                         timeout=timeout,
-                                         accept_type='application/json')
+        _, html_sign = self.get_res(url=signin_url,
+                                    ua=ua,
+                                    cookies=cookies,
+                                    proxy=proxy,
+                                    timeout=timeout,
+                                    accept_type='application/json')
 
         if not html_sign:
             logger.warning(f"{site} 签到失败，签到接口请求失败")
