@@ -107,7 +107,7 @@ class _ISiteSigninHandler(metaclass=ABCMeta):
                                                          cookies=cookies,
                                                          ua=ua,
                                                          proxies=settings.PROXY_SERVER if proxy else None,
-                                                         # headles = True,
+                                                         # headless = True,
                                                          timeout=timeout or 60)
 
         res = RequestUtils(headers=headers,

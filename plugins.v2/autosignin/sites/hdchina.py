@@ -1,4 +1,3 @@
-import json
 from typing import Tuple
 from urllib.parse import urljoin
 
@@ -24,7 +23,7 @@ class HDChina(_ISiteSigninHandler):
         """
         获取当前站点域名，可以是单个或者多个域名
         """
-        return "hdchina.org"
+        return "hdwing.org"
 
     def signin(self, site_info: CommentedMap) -> Tuple[bool, str]:
         """
@@ -47,23 +46,14 @@ class HDChina(_ISiteSigninHandler):
         signin_url = urljoin(url, "/plugin_sign-in.php?cmd=signin")
 
         # 尝试解决瓷器cookie每天签到后过期,只保留hdchina=部分
-        cookie = ""
-        # 按照分号进行字符串拆分
-        sub_strs = cookies.split(";")
-        # 遍历每个子字符串
-        for sub_str in sub_strs:
-            if "hdchina=" in sub_str:
-                # 如果子字符串包含"hdchina="，则保留该子字符串
-                cookie += sub_str + ";"
-
-        if "hdchina=" not in cookie:
+        new_cookies = ";".join([ck for ck in cookies.split(";") if ck.startswith("hdchina=")])
+        if "hdchina=" not in new_cookies:
             logger.warning(f"{site} 签到失败，Cookie已失效")
             return False, '签到失败，Cookie已失效'
 
-        cookies = cookie
         # 获取页面html
         html_res = RequestUtils(ua=ua,
-                                cookies=cookies,
+                                cookies=new_cookies,
                                 proxies=settings.PROXY if proxy else None,
                                 timeout=timeout
                                 ).get_res(url=url)
@@ -71,15 +61,12 @@ class HDChina(_ISiteSigninHandler):
             logger.warning(f"{site} 签到失败，请检查站点连通性")
             return False, '签到失败，请检查站点连通性'
 
+        html_res.encoding = "utf-8"
         if "takelogin.php" in html_res.text or "阻断页面" in html_res.text:
             logger.warning(f"{site} 签到失败，Cookie失效")
             return False, '签到失败，Cookie失效'
 
-        # 获取新返回的cookie进行签到
-        cookies = ';'.join(['{}={}'.format(k, v) for k, v in html_res.cookies.get_dict().items()])
-
         # 判断是否已签到
-        html_res.encoding = "utf-8"
         if self.test_re(text=html_res.text, regexs=self._sign_regex):
             logger.info(f"{site} 今日已签到")
             return True, '今日已签到'
@@ -93,16 +80,21 @@ class HDChina(_ISiteSigninHandler):
         # x_csrf
         x_csrf = html.xpath("//meta[@name='x-csrf']/@content")[0]
         if not x_csrf:
-            logger.warning("{site} 签到失败，获取x-csrf失败")
-            return False, '签到失败'
-        logger.debug(f"获取到x-csrf {x_csrf}")
+            logger.warning(f"{site} 签到失败，签到参数获取失败")
+            return False, '签到失败，签到参数获取失败'
+
+        logger.debug(f"{site} x-csrf: {x_csrf}")
 
         # 签到
         data = {
             'csrf': x_csrf
         }
+        logger.debug(f"{site} 签到请求参数：{data}")
+
+        # 获取新返回的cookie进行签到
+        new_cookies = ';'.join(['{}={}'.format(k, v) for k, v in html_res.cookies.get_dict().items()])
         sign_res = RequestUtils(ua=ua,
-                                cookies=cookies,
+                                cookies=new_cookies,
                                 proxies=settings.PROXY if proxy else None,
                                 timeout=timeout
                                 ).post_res(url=signin_url, data=data)
@@ -110,13 +102,12 @@ class HDChina(_ISiteSigninHandler):
             logger.warning(f"{site} 签到失败，签到接口请求失败")
             return False, '签到失败，签到接口请求失败'
 
-        sign_dict = json.loads(sign_res.text)
-        logger.debug(f"签到返回结果 {sign_dict}")
-        if sign_dict['state']:
-            # {'state': 'success', 'signindays': 10, 'integral': 20}
+        sign_dict = self.safe_json_loads(sign_res.text)
+        # {'state': 'success', 'signindays': 10, 'integral': 20}
+        if sign_dict and sign_dict['state']:
             logger.info(f"{site} 签到成功")
             return True, '签到成功'
-        else:
-            # {'state': False, 'msg': '不正确的CSRF / Incorrect CSRF token'}
-            logger.warning(f"{site} 签到失败，不正确的CSRF / Incorrect CSRF token")
-            return False, '签到失败'
+
+        # {'state': false, 'msg': '不正确的CSRF / Incorrect CSRF token'}
+        logger.warning(f"{site} 签到失败，接口返回：\n{sign_res.text}")
+        return False, '签到失败，请查看日志'
