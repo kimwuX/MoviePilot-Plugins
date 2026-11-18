@@ -83,14 +83,24 @@ class OpenCD(_ISiteSigninHandler):
             return False, f'签到失败，无法解析文档'
 
         # 签到参数
-        img_capt = html.xpath('//form[@id="frmSignin"]//img/@src')
-        img_hash = html.xpath('//form[@id="frmSignin"]//input[@name="imagehash"]/@value')
-        if not img_capt or not img_hash:
-            logger.warning(f"{site} 签到失败，签到参数获取失败")
+        csrf_token = html.xpath('//form[@id="frmSignin"]//input[@name="csrf_token"]/@value')
+        if not csrf_token:
+            logger.warning(f"{site} 签到失败，签到参数[csrf_token]获取失败")
             return False, '签到失败，签到参数获取失败'
 
-        logger.debug(f"{site} img_capt: {img_capt}")
+        img_hash = html.xpath('//form[@id="frmSignin"]//input[@name="imagehash"]/@value')
+        if not img_hash:
+            logger.warning(f"{site} 签到失败，签到参数[img_hash]获取失败")
+            return False, '签到失败，签到参数获取失败'
+
+        img_capt = html.xpath('//form[@id="frmSignin"]//img/@src')
+        if not img_capt:
+            logger.warning(f"{site} 签到失败，签到参数[img_capt]获取失败")
+            return False, '签到失败，签到参数获取失败'
+
+        logger.debug(f"{site} img_capt: {csrf_token}")
         logger.debug(f"{site} img_hash: {img_hash}")
+        logger.debug(f"{site} img_capt: {img_capt}")
 
         # 完整验证码url
         img_url = urljoin(url, img_capt[0])
@@ -107,6 +117,7 @@ class OpenCD(_ISiteSigninHandler):
 
         # 组装请求参数
         data = {
+            'csrf_token': csrf_token[0],
             'imagehash': img_hash[0],
             'imagestring': ocr_result
         }
